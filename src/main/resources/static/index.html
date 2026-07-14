@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Assess Hub</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230B1F3A'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%23C9A227' stroke-width='2'/%3E%3Ctext x='32' y='36' font-family='Arial' font-size='12' font-weight='bold' fill='%23FFFFFF' text-anchor='middle'%3ESXCCE%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root[data-theme="light"] {
+            --bg-main: #FBF8F1;
+            --bg-card: #FFFFFF;
+            --bg-sidebar: linear-gradient(180deg, #081226, #0B1F3A);
+            --text-main: #171C2B;
+            --text-muted: #4c5470;
+            --line: #E3DCC8;
+            --cream: #F3EFE4;
+            --gold: #C9A227;
+            --gold-soft: #a8811d;
+            --navy-base: #0B1F3A;
+            --success: #2F6F4E;
+            --success-bg: #E1F0E6;
+            --pending: #A85F1D;
+            --pending-bg: #FBEADB;
+            --shadow: 0 4px 20px -10px rgba(8, 18, 38, 0.15);
+        }
+
+        :root[data-theme="dark"] {
+            --bg-main: #0B121F;
+            --bg-card: #131C2E;
+            --bg-sidebar: linear-gradient(180deg, #050B14, #081224);
+            --text-main: #F5F7FA;
+            --text-muted: #8E9AA8;
+            --line: #223147;
+            --cream: #1A2638;
+            --gold: #E6C666;
+            --gold-soft: #C9A227;
+            --navy-base: #1E2D4A;
+            --success: #4EAF76;
+            --success-bg: #163224;
+            --pending: #D9822B;
+            --pending-bg: #3B2411;
+            --shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        button {
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .theme-toggle-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(251, 248, 241, 0.15);
+            color: #FFF;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            width: 100%;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .theme-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* ================= AUTHENTICATION ================= */
+        #authScreen {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+        }
+
+        @media (max-width: 860px) {
+            #authScreen {
+                grid-template-columns: 1fr;
+            }
+
+            .authLeft {
+                display: none;
+            }
+        }
+
+        .authLeft {
+            background: linear-gradient(160deg, #050B14, #0B1F3A);
+            color: #FBF8F1;
+            padding: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .brandMark {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .sealMini {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--gold);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #0B1F3A;
+        }
+        .sealMini svg { width: 30px; height: 30px; }
+
+        .authHero h1 {
+            font-size: 40px;
+            margin: 30px 0 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .authRight {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .authCard {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .modeToggle {
+            display: flex;
+            background: var(--cream);
+            padding: 4px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+
+        .modeToggle button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .modeToggle button.active {
+            background: var(--navy-base);
+            color: var(--gold);
+        }
+
+        .field {
+            margin-bottom: 16px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            padding: 11px 13px;
+            border: 1.5px solid var(--line);
+            border-radius: 8px;
+            background: var(--bg-card);
+            color: var(--text-main);
+            font-size: 14px;
+        }
+
+        .field input:focus {
+            border-color: var(--gold);
+            outline: none;
+        }
+
+        .rolePick {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .rolePick label {
+            flex: 1;
+            border: 1.5px solid var(--line);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .rolePick input {
+            display: none;
+        }
+
+        .rolePick label.checked {
+            background: var(--navy-base);
+            color: var(--gold);
+            border-color: var(--gold);
+        }
+
+        .btnPrimary {
+            width: 100%;
+            background: var(--navy-base);
+            color: var(--gold);
+            padding: 13px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            margin-top: 10px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btnPrimary:hover {
+            opacity: 0.9;
+        }
+
+        .errMsg {
+            background: #FCE8E6;
+            color: #A81C1C;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 14px;
+            display: none;
+        }
+
+        .errMsg.show {
+            display: block;
+        }
+
+        /* ================= APP DASHBOARD LAYOUT ================= */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: 100vh;
+        }
+
+        @media (max-width: 760px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                height: auto;
+                position: relative;
+            }
+        }
+
+        .sidebar {
+            background: var(--bg-sidebar);
+            color: #FFF;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+        }
+
+        .navList {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .navList li button {
+            width: 100%;
+            text-align: left;
+            padding: 12px;
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navList li button:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #FFF;
+        }
+
+        .navList li button.active {
+            background: rgba(201, 162, 39, 0.18);
+            color: var(--gold);
+            font-weight: 600;
+        }
+
+        .mainArea {
+            padding: 40px;
+            overflow-y: auto;
+        }
+
+        .pageHead {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 16px;
+        }
+
+        /* ================= CARDS & TABLES ================= */
+        .cardGrid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .aCard {
+            background: var(--bg-card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 22px;
+            display: flex;
+            justify-content: space-between;
+            box-shadow: var(--shadow);
+        }
+
+        .aCard .subj {
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--gold-soft);
+            letter-spacing: 0.05em;
+        }
+
+        .aCard h3 {
+            margin: 6px 0;
+            font-size: 18px;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .badge.pending {
+            background: var(--pending-bg);
+            color: var(--pending);
+        }
+
+        .badge.submitted {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .ledger {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .ledger th {
+            background: var(--navy-base);
+            color: var(--gold);
+            text-align: left;
+            padding: 14px 18px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .ledger td {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--line);
+            font-size: 13.5px;
+        }
+
+        .view-pdf-link {
+            color: var(--gold-soft);
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .view-pdf-link:hover {
+            color: var(--gold);
+        }
+
+        .grade-badge {
+            background: var(--navy-base);
+            color: var(--gold);
+            font-family: 'JetBrains Mono', monospace;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .btnAction {
+            padding: 6px 12px;
+            background: var(--cream);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .btnAction:hover {
+            background: var(--gold);
+            color: #000;
+        }
+
+        /* ================= MODAL WINDOWS ================= */
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 20px;
+        }
+
+        .lightbox-content {
+            background: var(--bg-card);
+            border-radius: 14px;
+            width: 100%;
+            max-width: 850px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text-muted);
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+
+        .pdf-frame-container {
+            width: 100%;
+            height: 550px;
+            background: #fff;
+            border-radius: 8px;
+            margin-top: 14px;
+            border: 1px solid var(--line);
+            overflow: hidden;
+        }
+
+        .pdf-frame-view {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .yearBtn {
+            padding: 8px 4px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.15s ease;
+        }
+
+        .yearBtn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #FFF;
+        }
+
+        .yearBtn.active {
+            background: var(--gold);
+            color: #0B1F3A;
+            border-color: var(--gold);
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ================= REGISTER/LOGIN SCREEN ================= -->
+    <div id="authScreen">
+        <div class="authLeft">
+            <div class="brandMark">
+                <div class="sealMini">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="28" fill="#0B1F3A"/>
+                        <circle cx="32" cy="32" r="24" fill="none" stroke="#C9A227" stroke-width="1.5"/>
+                        <text x="32" y="28" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#C9A227" text-anchor="middle">ST. XAVIER'S</text>
+                        <text x="32" y="38" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SXCCE</text>
+                        <text x="32" y="47" font-family="Arial,sans-serif" font-size="5.5" fill="#C9A227" text-anchor="middle">EST. 1986</text>
+                    </svg>
+                </div>
+                <div><strong>SXCCE</strong><br><small style="opacity:0.6;">St. Xavier's Catholic College of
+                        Engineering</small></div>
+            </div>
+            <div class="authHero">
+                <span class="mono" style="color:var(--gold); font-size:12px; font-weight:bold;">PROJECT PORTAL</span>
+                <h1>Manage. Collaborate. Create.</h1>
+                <p>Teachers can post topics and add marks. Students can submit their PDF files and view feedback
+                    instantly.</p>
+            </div>
+            <div class="mono" style="font-size:11px; opacity:0.4;">Department Portal &middot; 2026</div>
+        </div>
+
+        <div class="authRight">
+            <div class="authCard">
+                <div class="modeToggle">
+                    <button id="tabLogin" class="active" onclick="switchAuthTab('login')">Log In</button>
+                    <button id="tabRegister" onclick="switchAuthTab('register')">Register</button>
+                </div>
+
+                <!-- LOGIN -->
+                <div id="loginForm">
+                    <h2 style="margin:0 0 6px;">Sign In</h2>
+                    <div style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">Please enter your account
+                        details.</div>
+                    <div class="errMsg" id="loginErr"></div>
+                    <div class="field"><label>Email Address</label><input type="email" id="loginEmail"
+                            placeholder="e.g., shernika.502459@sxcce.edu.in"></div>
+                    <div class="field"><label>Password</label><input type="password" id="loginPassword"
+                            placeholder="••••••••"></div>
+                    <button class="btnPrimary" onclick="handleLogin()">Login</button>
+                </div>
+
+                <!-- REGISTER -->
+                <div id="registerForm" class="hidden">
+                    <h2 style="margin:0 0 6px;">Create New Account</h2>
+                    <div class="errMsg" id="regErr"></div>
+                    <div class="rolePick">
+                        <label id="roleStudentLbl" class="checked"><input type="radio" name="role" value="student"
+                                checked onchange="onRoleChange()">Student</label>
+                        <label id="roleTeacherLbl"><input type="radio" name="role" value="teacher"
+                                onchange="onRoleChange()">Teacher</label>
+                    </div>
+                    <div class="field"><label>Full Name</label><input type="text" id="regName"
+                            placeholder="Enter Full Name"></div>
+                    <div class="field" id="rollField"><label>Roll Number / Registration Code</label><input type="text"
+                            id="regRoll" placeholder="e.g., 502400"></div>
+                    <div class="field" id="yearField">
+                        <label>Year of Study</label>
+                        <select id="regYear">
+                            <option value="1">1st Year</option>
+                            <option value="2" selected>2nd Year</option>
+                            <option value="3">3rd Year</option>
+                            <option value="4">4th Year</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>Email Address</label><input type="email" id="regEmail"
+                            placeholder="username@sxcce.edu.in"></div>
+                    <div class="field"><label>Password</label><input type="password" id="regPassword"
+                            placeholder="Password"></div>
+                    <div id="verifyWrap" class="hidden"
+                        style="background:var(--cream); padding:12px; border-radius:8px; margin-bottom:16px;">
+                        <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Teacher
+                            Verification Code</label>
+                        <input type="text" id="regVerifyCode" placeholder="Enter Code">
+                    </div>
+                    <button class="btnPrimary" onclick="handleRegister()">Register Account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= STUDENT DASHBOARD ================= -->
+    <div id="studentApp" class="dashboard hidden">
+        <div class="sidebar">
+            <div>
+                <div class="brandMark" style="margin-bottom:24px;">
+                    <div class="sealMini">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="28" fill="#0B1F3A"/>
+                            <circle cx="32" cy="32" r="24" fill="none" stroke="#C9A227" stroke-width="1.5"/>
+                            <text x="32" y="28" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#C9A227" text-anchor="middle">ST. XAVIER'S</text>
+                            <text x="32" y="38" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SXCCE</text>
+                            <text x="32" y="47" font-family="Arial,sans-serif" font-size="5.5" fill="#C9A227" text-anchor="middle">EST. 1986</text>
+                        </svg>
+                    </div>
+                    <div><strong>Smart Assess Hub</strong><br><small style="color:var(--gold);">Student Portal</small></div>
+                </div>
+                <button class="theme-toggle-btn" onclick="toggleTheme()">🌓 Light / Dark Mode</button>
+                <ul class="navList">
+                    <li><button id="navAssignments" class="active" onclick="switchStudentTab('assignments')">📋 Active
+                            Assignments</button></li>
+                    <li><button id="navSubmitted" onclick="switchStudentTab('submitted')">✓ Submission History</button>
+                    </li>
+                </ul>
+            </div>
+            <div><button class="btnPrimary" style="background:rgba(255,255,255,0.1); color:#FFF;"
+                    onclick="handleLogout()">Logout</button></div>
+        </div>
+        <div class="mainArea">
+            <div id="studentAssignmentsView">
+                <div class="pageHead">
+                    <div>
+                        <h1 style="margin:0;">Your Assignments</h1>
+                        <div id="studentGreeting" style="font-size:14px; color:var(--text-muted);"></div>
+                    </div>
+                </div>
+                <div class="cardGrid" id="studentAssignCards"></div>
+            </div>
+            <div id="studentSubmittedView" class="hidden">
+                <div class="pageHead">
+                    <h1>Submission History Logs</h1>
+                </div>
+                <div id="studentSubmittedTable"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= TEACHER DASHBOARD ================= -->
+    <div id="teacherApp" class="dashboard hidden">
+        <div class="sidebar">
+            <div>
+                <div class="brandMark" style="margin-bottom:16px;">
+                    <div class="sealMini">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="28" fill="#0B1F3A"/>
+                            <circle cx="32" cy="32" r="24" fill="none" stroke="#C9A227" stroke-width="1.5"/>
+                            <text x="32" y="28" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#C9A227" text-anchor="middle">ST. XAVIER'S</text>
+                            <text x="32" y="38" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#FFFFFF" text-anchor="middle">SXCCE</text>
+                            <text x="32" y="47" font-family="Arial,sans-serif" font-size="5.5" fill="#C9A227" text-anchor="middle">EST. 1986</text>
+                        </svg>
+                    </div>
+                    <div><strong>Smart Assess Hub</strong><br><small style="color:var(--gold);">Teacher Portal</small></div>
+                </div>
+                <button class="theme-toggle-btn" onclick="toggleTheme()">🌓 Light / Dark Mode</button>
+
+                <!-- Year Selector -->
+                <div
+                    style="margin:14px 0 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; opacity:0.5; color:#FFF;">
+                    Select Class Year</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:18px;">
+                    <button id="yrBtn1" class="yearBtn active" onclick="selectYear(1)">1st Year</button>
+                    <button id="yrBtn2" class="yearBtn" onclick="selectYear(2)">2nd Year</button>
+                    <button id="yrBtn3" class="yearBtn" onclick="selectYear(3)">3rd Year</button>
+                    <button id="yrBtn4" class="yearBtn" onclick="selectYear(4)">4th Year</button>
+                </div>
+
+                <div
+                    style="margin:0 0 8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; opacity:0.5; color:#FFF;">
+                    Actions</div>
+                <ul class="navList">
+                    <li><button id="tnavPost" class="active" onclick="switchTeacherTab('post')">✍ Post New
+                            Assignment</button></li>
+                    <li><button id="tnavPosted" onclick="switchTeacherTab('posted')">📋 Posted Assignments</button></li>
+                    <li><button id="tnavSubs" onclick="switchTeacherTab('subs')">📥 Submissions Desk</button></li>
+                </ul>
+            </div>
+            <div>
+                <div id="teacherInfo"
+                    style="font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:10px; padding:8px; background:rgba(255,255,255,0.05); border-radius:6px;">
+                </div>
+                <button class="btnPrimary" style="background:rgba(255,255,255,0.1); color:#FFF;"
+                    onclick="handleLogout()">Logout</button>
+            </div>
+        </div>
+        <div class="mainArea">
+            <!-- POST NEW ASSIGNMENT -->
+            <div id="teacherPostView">
+                <div class="pageHead">
+                    <div>
+                        <h1 style="margin:0;">Post New Assignment</h1>
+                        <div id="postYearLabel" style="font-size:14px; color:var(--gold-soft); margin-top:4px;"></div>
+                    </div>
+                </div>
+                <div style="max-width:540px;">
+                    <div id="postSuccessMsg"
+                        style="display:none; background:var(--success-bg); color:var(--success); padding:12px; border-radius:8px; margin-bottom:16px; font-weight:600;">
+                    </div>
+                    <div class="field"><label>Assignment Title</label><input type="text" id="pTitle"
+                            placeholder="e.g., DBMS ER Diagram"></div>
+                    <div class="field"><label>Subject</label><input type="text" id="pSubject"
+                            placeholder="e.g., Database Management Systems"></div>
+                    <div class="field"><label>Due Date / Deadline</label><input type="date" id="pDueDate"></div>
+                    <div class="field"><label>Assignment Description / Details</label><textarea id="pDesc" rows="4"
+                            placeholder="Type instructions, requirements, and marking criteria here..."></textarea>
+                    </div>
+                    <button class="btnPrimary" onclick="handlePostAssignment()">📤 Post Assignment to Class</button>
+                </div>
+            </div>
+
+            <!-- POSTED ASSIGNMENTS VIEW -->
+            <div id="teacherPostedView" class="hidden">
+                <div class="pageHead">
+                    <div>
+                        <h1 style="margin:0;">Posted Assignments</h1>
+                        <div id="postedYearLabel" style="font-size:14px; color:var(--gold-soft); margin-top:4px;"></div>
+                    </div>
+                    <button class="btnAction" onclick="renderPostedAssignments()">🔄 Refresh</button>
+                </div>
+                <div id="teacherPostedTable"></div>
+            </div>
+
+            <!-- SUBMISSIONS DESK -->
+            <div id="teacherSubsView" class="hidden">
+                <div class="pageHead">
+                    <div>
+                        <h1 style="margin:0;">Submissions Desk</h1>
+                        <div id="subsYearLabel" style="font-size:14px; color:var(--gold-soft); margin-top:4px;"></div>
+                    </div>
+                    <button class="btnAction" onclick="renderTeacherDesk()">🔄 Refresh</button>
+                </div>
+                <div id="teacherSubsTable"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= POPUP WINDOWS ================= -->
+    <div id="pdfLightbox" class="lightbox hidden">
+        <div class="lightbox-content" style="max-width:920px;">
+            <button class="lightbox-close" onclick="closePdfLightbox()">×</button>
+            <h3 style="margin:0 0 4px;" id="pdfModalTitle">View Submission</h3>
+            <p style="margin:0 0 6px 0; font-size:12px; color:var(--text-muted);" id="pdfModalMeta"></p>
+            <h4 style="margin: 0 0 10px 0; color: var(--gold-soft);">📄 <span id="pdfModalFileName">document.pdf</span></h4>
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <button class="btnAction" onclick="downloadCurrentPdf()">⬇ Download PDF</button>
+                <button class="btnAction" onclick="openInNewTab()">🔗 Open in New Tab</button>
+            </div>
+            <div class="pdf-frame-container" style="height:600px;">
+                <iframe id="pdfFrameView" class="pdf-frame-view" src=""></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Evaluation Box -->
+    <div id="gradeLightbox" class="lightbox hidden">
+        <div class="lightbox-content" style="max-width:420px;">
+            <button class="lightbox-close" onclick="closeGradeLightbox()">×</button>
+            <h3>Add Grade & Feedback</h3>
+            <div style="margin-bottom:14px; font-size:13px; background:var(--cream); padding:10px; border-radius:6px;">
+                Student Name: <strong id="gradeStudentName"></strong><br>
+                Assignment: <span id="gradeTaskTitle"></span>
+            </div>
+            <input type="hidden" id="gradeSubId">
+            <div class="field"><label>Enter Marks (Out of 100)</label><input type="number" id="gradeScoreField"
+                    max="100" min="0" placeholder="e.g., 90"></div>
+            <div class="field"><label>Teacher Comments / Feedback</label><textarea id="gradeFeedbackField" rows="2"
+                    placeholder="Good work!"></textarea></div>
+            <button class="btnPrimary" onclick="submitGradeScore()">Save Grade</button>
+        </div>
+    </div>
+
+    <script>
+        const VERIFY_TOKEN = "TECH2026";
+        const STREAM_MAP = { 1: "1st Year", 2: "2nd Year", 3: "3rd Year", 4: "4th Year" };
+        const BASE_URL = "http://localhost:8080/api";
+        let activeBlobUrl = null;
+        // In-memory PDF store: key = submissionId, value = object URL
+        const localPdfStore = {};
+
+        // Injecting authorization headers safely
+        async function secureFetch(url, options = {}) {
+            const token = localStorage.getItem('jwt_token');
+            options.headers = options.headers || {};
+            if (token) {
+                options.headers['Authorization'] = `Bearer ${token}`;
+            }
+            try {
+                return await fetch(url, options);
+            } catch (e) {
+                console.error("Network layer handling break: ", e);
+                throw e;
+            }
+        }
+
+        function getStorage(k) { return JSON.parse(localStorage.getItem(k) || '[]'); }
+        function setStorage(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+
+        /* Seed System Database Initial Fallback Setup */
+        if (getStorage('s_assigns').length === 0) {
+            setStorage('s_assigns', [
+                { id: 'a1', title: 'DBMS ER Diagram', subject: 'Database Management Systems', year: '1', yearGroup: 1, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-07-28', description: 'Create schematic maps detailing advanced entity distribution matrix.' },
+                { id: 'a2', title: 'DBMS ER Diagram', subject: 'Database Management Systems', year: '2', yearGroup: 2, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-07-28', description: 'Create schematic maps detailing advanced entity distribution matrix.' },
+                { id: 'a3', title: 'Data Structures Lab', subject: 'Data Structures', year: '3', yearGroup: 3, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-08-05', description: 'Implement binary search tree operations.' },
+                { id: 'a4', title: 'Machine Learning Project', subject: 'Artificial Intelligence', year: '4', yearGroup: 4, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-08-15', description: 'Build a classification model using scikit-learn.' }
+            ]);
+            setStorage('s_subs', [
+                { id: 'sub_1', assignmentId: 'a2', assignmentTitle: 'DBMS ER Diagram', subject: 'Database Management Systems', studentName: 'Shernika S S', studentEmail: 'shernika.502459@sxcce.edu.in', studentRoll: '502400', fileName: 'Shernika.S.S-III IT.pdf', timestamp: '13/07/2026, 10:58:09', marks: '88', feedback: 'Good structural maps.' }
+            ]);
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const targetTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', targetTheme);
+        }
+
+        function switchAuthTab(t) {
+            document.getElementById('tabLogin').classList.toggle('active', t === 'login');
+            document.getElementById('tabRegister').classList.toggle('active', t === 'register');
+            document.getElementById('loginForm').classList.toggle('hidden', t !== 'login');
+            document.getElementById('registerForm').classList.toggle('hidden', t !== 'register');
+        }
+
+        function onRoleChange() {
+            const role = document.querySelector('input[name="role"]:checked').value;
+            document.getElementById('roleStudentLbl').className = role === 'student' ? 'checked' : '';
+            document.getElementById('roleTeacherLbl').className = role === 'teacher' ? 'checked' : '';
+            document.getElementById('verifyWrap').classList.toggle('hidden', role !== 'teacher');
+            document.getElementById('rollField').classList.toggle('hidden', role === 'teacher');
+            document.getElementById('yearField').classList.toggle('hidden', role === 'teacher');
+        }
+
+        async function handleRegister() {
+            const role = document.querySelector('input[name="role"]:checked').value;
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim().toLowerCase();
+            const pass = document.getElementById('regPassword').value;
+            const eBox = document.getElementById('regErr'); eBox.classList.remove('show');
+
+            if (!name || !email || !pass) { eBox.textContent = "Please fill all fields."; eBox.classList.add('show'); return; }
+
+            let database = getStorage('s_users');
+            if (database.some(x => x.email === email)) { eBox.textContent = "Email already registered."; eBox.classList.add('show'); return; }
+
+            let userObject = { role, name, email, password: pass };
+            if (role === 'student') {
+                userObject.roll = document.getElementById('regRoll').value.trim() || '502400';
+                userObject.year = document.getElementById('regYear').value;
+            } else {
+                if (document.getElementById('regVerifyCode').value !== VERIFY_TOKEN) { eBox.textContent = "Invalid teacher code."; eBox.classList.add('show'); return; }
+            }
+
+            try {
+                await fetch(`${BASE_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userObject)
+                });
+                database.push(userObject); setStorage('s_users', database);
+                alert("Registration completed! You can login now."); switchAuthTab('login');
+            } catch (err) {
+                database.push(userObject); setStorage('s_users', database);
+                alert("Sandbox Registration complete!"); switchAuthTab('login');
+            }
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+            const pass = document.getElementById('loginPassword').value;
+            const eBox = document.getElementById('loginErr'); eBox.classList.remove('show');
+
+            if (!email || !pass) { eBox.textContent = "Please enter your email and password."; eBox.classList.add('show'); return; }
+
+            let database = getStorage('s_users');
+            if (database.length === 0) {
+                database = [
+                    { role: 'student', name: 'Shernika S S', email: 'shernika.502459@sxcce.edu.in', password: '123', roll: '502400', year: '2' },
+                    { role: 'teacher', name: 'Prof. Edwin Garcia', email: 'staff@sxcce.edu.in', password: '123' }
+                ];
+                setStorage('s_users', database);
+            }
+
+            try {
+                const res = await fetch(`${BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password: pass })
+                });
+                const networkData = await res.json();
+
+                // If server returned an error status, throw to trigger local fallback
+                if (!res.ok) {
+                    throw new Error(networkData.error || 'Login failed');
+                }
+
+                // Build a consistent identity object — handle both flat and nested API response shapes
+                const rawRole = (networkData.role || 'student').replace('ROLE_', '').toLowerCase();
+                const nestedUser = networkData.user || {};
+                const identity = {
+                    role: rawRole,
+                    name: networkData.name || networkData.fullName || nestedUser.name || email,
+                    email: networkData.email || nestedUser.email || email,
+                    id: networkData.id || nestedUser.id,
+                    roll: networkData.roll || networkData.identificationNumber || nestedUser.roll || '',
+                    year: String(networkData.year || networkData.yearGroup || nestedUser.yearGroup || '2')
+                };
+
+                localStorage.setItem('jwt_token', networkData.token);
+                localStorage.setItem('s_session', JSON.stringify(identity));
+                proceedToDashboard(identity);
+            } catch (e) {
+                // Fallback: authenticate against localStorage users (works offline too)
+                const identity = database.find(x => x.email === email && x.password === pass);
+                if (!identity) { eBox.textContent = "Invalid email address or incorrect password."; eBox.classList.add('show'); return; }
+                localStorage.setItem('jwt_token', "mock_token_active");
+                localStorage.setItem('s_session', JSON.stringify(identity));
+                proceedToDashboard(identity);
+            }
+        }
+
+        function proceedToDashboard(identity) {
+            document.getElementById('authScreen').classList.add('hidden');
+            if (identity.role === 'student') { document.getElementById('studentApp').classList.remove('hidden'); initStudent(); }
+            else { document.getElementById('teacherApp').classList.remove('hidden'); initTeacher(); }
+        }
+
+        function handleLogout() { localStorage.clear(); location.reload(); }
+
+        /* STUDENT CONSOLE PROCESSORS */
+        function initStudent() {
+            const current = JSON.parse(localStorage.getItem('s_session'));
+            const yearLabel = STREAM_MAP[parseInt(current.year)] || 'N/A';
+            document.getElementById('studentGreeting').textContent = `Logged in as: ${current.name} (${current.roll || 'N/A'}) — Class: ${yearLabel}`;
+            switchStudentTab('assignments');
+        }
+        function switchStudentTab(t) {
+            document.getElementById('studentAssignmentsView').classList.toggle('hidden', t !== 'assignments');
+            document.getElementById('studentSubmittedView').classList.toggle('hidden', t !== 'submitted');
+            document.getElementById('navAssignments').classList.toggle('active', t === 'assignments');
+            document.getElementById('navSubmitted').classList.toggle('active', t === 'submitted');
+            if (t === 'assignments') renderStudentTasks();
+            if (t === 'submitted') renderStudentHistory();
+        }
+
+        async function renderStudentTasks() {
+            const current = JSON.parse(localStorage.getItem('s_session'));
+            const container = document.getElementById('studentAssignCards'); container.innerHTML = '<div style="padding:20px; opacity:0.6;">Loading assignments...</div>';
+
+            // Load from localStorage as baseline (works immediately)
+            let assignments = getStorage('s_assigns').filter(x => String(x.yearGroup || x.year) === String(current.year));
+            let submissions = getStorage('s_subs').filter(x => x.studentEmail === current.email);
+
+            try {
+                const aRes = await secureFetch(`${BASE_URL}/assignments/year/${current.year}`);
+                if (aRes.ok) {
+                    const serverAssigns = await aRes.json();
+                    if (Array.isArray(serverAssigns) && serverAssigns.length > 0) {
+                        const localIds = new Set(assignments.map(a => String(a.id)));
+                        serverAssigns.forEach(sa => {
+                            if (!localIds.has(String(sa.id))) assignments.push(sa);
+                        });
+                    }
+                }
+                const sRes = await secureFetch(`${BASE_URL}/submissions/student/${current.id}`);
+                if (sRes.ok) {
+                    const serverSubs = await sRes.json();
+                    if (Array.isArray(serverSubs) && serverSubs.length > 0) submissions = serverSubs;
+                }
+            } catch (e) { console.log('Using local data:', e.message); }
+
+            container.innerHTML = '';
+            if (assignments.length === 0) { container.innerHTML = `<div style="padding:20px; opacity:0.5;">No active assignments posted for your class yet. Check back later.</div>`; return; }
+
+            assignments.forEach(a => {
+                // Match submission using both string and number id comparison
+                const targetSub = submissions.find(x => String(x.assignmentId) === String(a.id));
+                const completed = !!targetSub;
+                const card = document.createElement('div'); card.className = 'aCard';
+                const subjectLabel = a.subject || a.subjectName || 'N/A';
+                const teacherLabel = a.teacherName || a.teacher || 'Teacher';
+                const dueDateLabel = a.dueDate || a.deadline || 'N/A';
+                card.innerHTML = `
+      <div style="flex:1;">
+        <span class="subj">${subjectLabel}</span>
+        <h3 style="margin:6px 0;">${a.title}</h3>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Due: ${dueDateLabel} &middot; Posted By: ${teacherLabel}</div>
+        ${a.description ? `<div style="font-size:13px; color:var(--text-muted); background:var(--cream); padding:8px; border-radius:6px; margin-top:4px;">${a.description}</div>` : ''}
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:140px;">
+        <span class="badge ${completed ? 'submitted' : 'pending'}">${completed ? '✓ Submitted' : 'Pending'}</span>
+        ${completed ? `
+          <button class="btnAction" onclick="openStudentPdf('${targetSub.id}', '${(targetSub.fileName||'').replace(/'/g,"''")}')" style="background:var(--navy-base); color:var(--gold); border-color:var(--gold);">📄 View My PDF</button>
+          ${targetSub.marks ? `<span class="grade-badge">Marks: ${targetSub.marks}/100</span>${targetSub.feedback ? `<div style="font-size:11px; color:var(--text-muted); text-align:right; max-width:140px;">💬 ${targetSub.feedback}</div>` : ''}` : `<span style="font-size:11px; opacity:0.6;">Awaiting Grade</span>`}
+        ` : `
+          <input type="file" id="realFile_${a.id}" accept=".pdf" style="display:none;" onchange="handleRealPdfUpload('${a.id}')">  
+          <button class="btnAction" onclick="document.getElementById('realFile_${a.id}').click()">📁 Upload PDF File</button>
+        `}
+      </div>`;
+                container.appendChild(card);
+            });
+        }
+
+        function openStudentPdf(subId, fileName) {
+            const blobUrl = localPdfStore[subId];
+            document.getElementById('pdfModalTitle').textContent = 'My Submission';
+            document.getElementById('pdfModalFileName').textContent = fileName || 'submission.pdf';
+            document.getElementById('pdfModalMeta').textContent = 'Your submitted file';
+            document.getElementById('pdfLightbox').classList.remove('hidden');
+
+            if (blobUrl) {
+                // Use stored blob from this session
+                document.getElementById('pdfFrameView').removeAttribute('srcdoc');
+                document.getElementById('pdfFrameView').src = blobUrl;
+            } else {
+                // Try from server
+                openPdfLightbox(subId, fileName, 'You');
+            }
+        }
+
+        async function handleRealPdfUpload(assignmentId) {
+            const fileInput = document.getElementById(`realFile_${assignmentId}`);
+            if (!fileInput.files.length) return;
+            const file = fileInput.files[0];
+            if (file.type !== 'application/pdf') { alert('Please upload a PDF file only.'); return; }
+
+            const user = JSON.parse(localStorage.getItem('s_session'));
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("assignmentId", assignmentId);
+            formData.append("studentId", user.id || "1");
+
+            // Always store blob locally first for in-session PDF viewing
+            const blobUrl = URL.createObjectURL(file);
+            const tempSubId = 'sub_' + Date.now();
+
+            try {
+                const uploadRes = await secureFetch(`${BASE_URL}/submissions/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (uploadRes.ok) {
+                    const result = await uploadRes.json();
+                    const realSubId = result.id || tempSubId;
+                    localPdfStore[realSubId] = blobUrl;
+                    alert('PDF uploaded successfully!');
+                } else {
+                    throw new Error('Server upload failed');
+                }
+            } catch (e) {
+                // Sandbox fallback: save to localStorage and store blob in memory
+                const match = getStorage('s_assigns').find(x => String(x.id) === String(assignmentId));
+                if (!match) { alert('Assignment not found locally.'); return; }
+                let allSubs = getStorage('s_subs');
+                // Remove old submission for same assignment (re-submit)
+                allSubs = allSubs.filter(x => !(x.studentEmail === user.email && String(x.assignmentId) === String(assignmentId)));
+                const newSub = {
+                    id: tempSubId,
+                    assignmentId: String(assignmentId),
+                    assignmentTitle: match.title,
+                    subject: match.subject || '',
+                    studentName: user.name,
+                    studentEmail: user.email,
+                    studentRoll: user.roll || '502400',
+                    fileName: file.name,
+                    timestamp: new Date().toLocaleString(),
+                    marks: '',
+                    feedback: ''
+                };
+                allSubs.push(newSub);
+                setStorage('s_subs', allSubs);
+                localPdfStore[tempSubId] = blobUrl;
+                alert(`PDF "${file.name}" submitted successfully!`);
+            }
+            renderStudentTasks();
+        }
+
+        async function renderStudentHistory() {
+            const user = JSON.parse(localStorage.getItem('s_session'));
+            const container = document.getElementById('studentSubmittedTable');
+            let subs = getStorage('s_subs').filter(x => x.studentEmail === user.email);
+
+            try {
+                const sRes = await secureFetch(`${BASE_URL}/submissions/student/${user.id}`);
+                if (sRes.ok) {
+                    const serverSubs = await sRes.json();
+                    if (Array.isArray(serverSubs) && serverSubs.length > 0) subs = serverSubs;
+                }
+            } catch (e) { }
+
+            if (subs.length === 0) { container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No submission history found yet.</p>"; return; }
+            let rows = '';
+            subs.forEach(s => {
+                const hasPdf = !!localPdfStore[s.id];
+                rows += `<tr>
+      <td><strong>${s.assignmentTitle}</strong><br><small style="color:var(--text-muted);">${s.subject || ''}</small></td>
+      <td>
+        <span class="view-pdf-link" onclick="openStudentPdf('${s.id}', '${(s.fileName||'').replace(/'/g,"''")}')">
+          📄 ${s.fileName || 'file.pdf'}
+        </span>
+        ${hasPdf ? '<span style="font-size:10px; color:#2F6F4E; margin-left:4px;">(available)</span>' : '<span style="font-size:10px; color:var(--text-muted); margin-left:4px;">(re-login to view)</span>'}
+      </td>
+      <td class="mono">${s.timestamp || s.submittedAt || '-'}</td>
+      <td>${s.marks ? `<span class="grade-badge">${s.marks} / 100</span>${s.feedback ? `<div style="font-size:11px; margin-top:4px; color:var(--text-muted);">💬 ${s.feedback}</div>` : ''}` : '<span style="opacity:0.5;">Awaiting Grade</span>'}</td>
+    </tr>`;
+            });
+            container.innerHTML = `<table class="ledger"><thead><tr><th>Assignment</th><th>Submitted File</th><th>Date &amp; Time</th><th>Grade &amp; Feedback</th></tr></thead><tbody>${rows}</tbody></table>`;
+        }
+
+        /* TEACHER CONSOLE PROCESSORS */
+        let currentTeacherYear = 1;
+
+        function initTeacher() {
+            const faculty = JSON.parse(localStorage.getItem('s_session'));
+            document.getElementById('teacherInfo').innerHTML = `<strong>${faculty.name}</strong><br>${faculty.email}`;
+
+            // Auto-select 2nd year if no year was set, else 1st
+            selectYear(1);
+        }
+
+        function selectYear(y) {
+            currentTeacherYear = parseInt(y);
+            // Update button styles
+            [1, 2, 3, 4].forEach(yr => {
+                const btn = document.getElementById('yrBtn' + yr);
+                if (btn) btn.classList.toggle('active', yr === currentTeacherYear);
+            });
+
+            // Update labels in views
+            const yrString = STREAM_MAP[currentTeacherYear];
+            document.getElementById('postYearLabel').textContent = `Targeting: ${yrString}`;
+            document.getElementById('postedYearLabel').textContent = `Viewing: ${yrString}`;
+            document.getElementById('subsYearLabel').textContent = `Viewing: ${yrString}`;
+
+            // Refresh active tab content based on new year
+            const activeTab = document.querySelector('.navList button.active').id;
+            if (activeTab === 'tnavPosted') renderPostedAssignments();
+            if (activeTab === 'tnavSubs') renderTeacherDesk();
+        }
+
+        function switchTeacherTab(t) {
+            document.getElementById('teacherPostView').classList.toggle('hidden', t !== 'post');
+            document.getElementById('teacherPostedView').classList.toggle('hidden', t !== 'posted');
+            document.getElementById('teacherSubsView').classList.toggle('hidden', t !== 'subs');
+
+            document.getElementById('tnavPost').classList.toggle('active', t === 'post');
+            document.getElementById('tnavPosted').classList.toggle('active', t === 'posted');
+            document.getElementById('tnavSubs').classList.toggle('active', t === 'subs');
+
+            if (t === 'posted') renderPostedAssignments();
+            if (t === 'subs') renderTeacherDesk();
+        }
+
+        async function handlePostAssignment() {
+            const title = document.getElementById('pTitle').value.trim();
+            const subj = document.getElementById('pSubject').value.trim();
+            const due = document.getElementById('pDueDate').value;
+            const desc = document.getElementById('pDesc').value.trim();
+            const faculty = JSON.parse(localStorage.getItem('s_session'));
+            const year = currentTeacherYear;
+
+            if (!title || !subj || !due) { alert("Please fill all required fields (Title, Subject, Due Date)."); return; }
+
+            const payload = {
+                title: title,
+                subject: subj,
+                yearGroup: year,
+                year: String(year), // for cross-compatibility with student filter
+                dueDate: due,
+                description: desc,
+                teacherId: faculty.id || 1,
+                teacherName: faculty.name || 'Teacher',
+                teacherEmail: faculty.email
+            };
+
+            try {
+                const res = await secureFetch(`${BASE_URL}/assignments/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    const created = await res.json();
+                    // Also save to localStorage for immediate visibility
+                    let list = getStorage('s_assigns');
+                    list.push({ id: String(created.id || 'a_' + Date.now()), ...payload });
+                    setStorage('s_assigns', list);
+                    const msgBox = document.getElementById('postSuccessMsg');
+                    msgBox.textContent = `✓ Assignment "${title}" posted to ${STREAM_MAP[year]}!`;
+                    msgBox.style.display = 'block';
+                    setTimeout(() => msgBox.style.display = 'none', 4000);
+                    document.getElementById('pTitle').value = '';
+                    document.getElementById('pSubject').value = '';
+                    document.getElementById('pDesc').value = '';
+                } else {
+                    throw new Error('Server returned error');
+                }
+            } catch (e) {
+                // Offline fallback: save directly to localStorage
+                let list = getStorage('s_assigns');
+                const newId = 'a_' + Date.now();
+                list.push({ id: newId, ...payload });
+                setStorage('s_assigns', list);
+                const msgBox = document.getElementById('postSuccessMsg');
+                msgBox.textContent = `✓ Assignment "${title}" saved locally for ${STREAM_MAP[year]}! (Offline mode)`;
+                msgBox.style.display = 'block';
+                setTimeout(() => msgBox.style.display = 'none', 4000);
+                document.getElementById('pTitle').value = '';
+                document.getElementById('pSubject').value = '';
+                document.getElementById('pDesc').value = '';
+            }
+        }
+
+        async function renderPostedAssignments() {
+            const container = document.getElementById('teacherPostedTable');
+            const faculty = JSON.parse(localStorage.getItem('s_session'));
+            const year = currentTeacherYear;
+
+            let assignments = [];
+            try {
+                const res = await secureFetch(`${BASE_URL}/assignments/teacher/${faculty.id || 1}/year/${year}`);
+                if (res.ok) assignments = await res.json();
+            } catch (e) { console.log('Teacher offline fallback used', e.message); }
+
+            const localList = getStorage('s_assigns').filter(a => String(a.yearGroup || a.year) === String(year));
+            const serverIds = new Set(assignments.map(a => String(a.id)));
+            localList.forEach(la => {
+                if (!serverIds.has(String(la.id))) assignments.push(la);
+            });
+
+            if (assignments.length === 0) {
+                container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No assignments posted for this year class yet.</p>";
+                return;
+            }
+
+            let rows = '';
+            assignments.forEach(a => {
+                rows += `<tr>
+      <td><strong>${a.title}</strong><br><small style="color:var(--text-muted);">${a.subject}</small></td>
+      <td>${a.description ? (a.description.substring(0, 40) + (a.description.length > 40 ? '...' : '')) : '-'}</td>
+      <td class="mono">${a.dueDate}</td>
+      <td><button class="btnAction" style="border:1px solid #ff4d4f; color:#ff4d4f; background:transparent;" onclick="deleteAssignment(${a.id})">Delete</button></td>
+    </tr>`;
+            });
+            container.innerHTML = `
+    <table class="ledger">
+      <thead><tr><th>Title & Subject</th><th>Description snippet</th><th>Due Date</th><th>Actions</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+        }
+
+        async function deleteAssignment(id) {
+            if (!confirm("Are you sure you want to delete this assignment?")) return;
+            try {
+                await secureFetch(`${BASE_URL}/assignments/${id}`, { method: 'DELETE' });
+                renderPostedAssignments();
+            } catch (e) {
+                alert("Error deleting assignment.");
+            }
+        }
+
+        async function renderTeacherDesk() {
+            const container = document.getElementById('teacherSubsTable');
+            const year = currentTeacherYear;
+            let submissions = [];
+
+            try {
+                const res = await secureFetch(`${BASE_URL}/submissions/year/${year}`);
+                if (res.ok) {
+                    const serverSubs = await res.json();
+                    if (Array.isArray(serverSubs) && serverSubs.length > 0) submissions = serverSubs;
+                }
+            } catch (e) { }
+
+            if (submissions.length === 0) {
+                const localSubs = getStorage('s_subs').filter(s => {
+                    const matchAssign = getStorage('s_assigns').find(a => String(a.id) === String(s.assignmentId));
+                    return matchAssign && String(matchAssign.yearGroup || matchAssign.year) === String(year);
+                });
+                if (localSubs.length > 0) {
+                    submissions = localSubs;
+                } else {
+                    container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No student submissions received for this year yet.</p>"; return;
+                }
+            }
+
+            let rows = '';
+            submissions.forEach(s => {
+                rows += `<tr>
+      <td><strong>${s.studentName}</strong><br><small class="mono" style="opacity:0.6;">${s.studentRoll}</small></td>
+      <td><strong>${s.assignmentTitle}</strong><br><small style="color:var(--text-muted); text-transform:uppercase;">${s.subject}</small></td>
+      <td><span class="view-pdf-link" onclick="openPdfLightbox('${s.id}', '${s.fileName}', '${s.studentName}')">📄 View PDF</span></td>
+      <td class="mono" style="font-size:12px;">${new Date(s.submittedAt || Date.now()).toLocaleDateString()}</td>
+      <td>
+        ${s.marks ? `
+          <span class="grade-badge" style="margin-right:6px;">${s.marks} / 100</span>
+          <button class="btnAction" style="padding:2px 6px; font-size:10px;" onclick="openGradeModal('${s.id}', '${s.studentName}', '${s.assignmentTitle}', '${s.marks}', '${s.feedback || ''}')">Edit</button>
+        ` : `
+          <button class="btnAction" onclick="openGradeModal('${s.id}', '${s.studentName}', '${s.assignmentTitle}', '', '')">✍ Add Grade</button>
+        `}
+      </td>
+    </tr>`;
+            });
+            container.innerHTML = `
+    <table class="ledger">
+      <thead><tr><th>Student Info</th><th>Assignment</th><th>File</th><th>Submitted Date</th><th>Actions</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+        }
+
+        /* 🛠️ REAL PREVIEW DATA BLOB STREAM INJECTOR */
+        async function openPdfLightbox(subId, fallbackFileName, studentName) {
+            document.getElementById('pdfModalTitle').textContent = studentName ? `Submission – ${studentName}` : 'View Submission';
+            document.getElementById('pdfModalFileName').textContent = fallbackFileName || 'Submission Document';
+            document.getElementById('pdfModalMeta').textContent = studentName ? `Uploaded by ${studentName}` : 'Student submission';
+            document.getElementById('pdfLightbox').classList.remove('hidden');
+
+            if (activeBlobUrl) {
+                URL.revokeObjectURL(activeBlobUrl);
+                activeBlobUrl = null;
+            }
+
+            // Check in-memory store first
+            if (localPdfStore[subId]) {
+                activeBlobUrl = localPdfStore[subId];
+                const frame = document.getElementById('pdfFrameView');
+                frame.removeAttribute('srcdoc');
+                frame.src = activeBlobUrl;
+                return;
+            }
+
+            try {
+                // Live Server real PDF streaming
+                const res = await secureFetch(`${BASE_URL}/submissions/view/${subId}`);
+
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+                    activeBlobUrl = URL.createObjectURL(pdfBlob);
+                    localPdfStore[subId] = activeBlobUrl;
+
+                    const frame = document.getElementById('pdfFrameView');
+                    frame.removeAttribute('srcdoc');
+                    frame.src = activeBlobUrl;
+                } else {
+                    throw new Error("Server returned " + res.status);
+                }
+            } catch (e) {
+                console.warn("PDF load failed, showing message:", e.message);
+                document.getElementById('pdfFrameView').removeAttribute('src');
+                document.getElementById('pdfFrameView').srcdoc = `
+                <div style="font-family:'Inter', sans-serif; padding:60px 40px; text-align:center; color:#171C2B; background:#FFF; height:100%;">
+                    <div style="font-size:55px; margin-bottom:15px;">📄</div>
+                    <h3 style="margin:0 0 10px 0; color:#C9A227; font-size:20px;">PDF Preview Unavailable</h3>
+                    <p style="font-size:14px; color:#4c5470; max-width:420px; margin:0 auto 20px; line-height:1.5;">
+                        The PDF could not be loaded from the server. This may happen if the backend is offline or the file was submitted in a previous session.
+                    </p>
+                    <p style="font-size:12px; color:#a0aec0;">File: <strong>${fallbackFileName || 'N/A'}</strong></p>
+                </div>`;
+            }
+        }
+
+        function downloadCurrentPdf() {
+            if (activeBlobUrl) {
+                const a = document.createElement('a');
+                a.href = activeBlobUrl;
+                a.download = document.getElementById('pdfModalFileName').textContent || 'submission.pdf';
+                a.click();
+            } else {
+                alert('No PDF is currently loaded.');
+            }
+        }
+
+        function openInNewTab() {
+            if (activeBlobUrl) {
+                window.open(activeBlobUrl, '_blank');
+            } else {
+                alert('No PDF is currently loaded.');
+            }
+        }
+
+        function closePdfLightbox() {
+            document.getElementById('pdfLightbox').classList.add('hidden');
+            document.getElementById('pdfFrameView').src = "";
+            document.getElementById('pdfFrameView').removeAttribute('srcdoc');
+            if (activeBlobUrl) {
+                URL.revokeObjectURL(activeBlobUrl);
+                activeBlobUrl = null;
+            }
+        }
+
+        function openGradeModal(id, studentName, title, currentMarks, currentFeedback) {
+            document.getElementById('gradeSubId').value = id;
+            document.getElementById('gradeStudentName').textContent = studentName;
+            document.getElementById('gradeTaskTitle').textContent = title;
+            document.getElementById('gradeScoreField').value = currentMarks;
+            document.getElementById('gradeFeedbackField').value = currentFeedback;
+            document.getElementById('gradeLightbox').classList.remove('hidden');
+        }
+
+        function closeGradeLightbox() {
+            document.getElementById('gradeLightbox').classList.add('hidden');
+        }
+
+        async function submitGradeScore() {
+            const id = document.getElementById('gradeSubId').value;
+            const marks = document.getElementById('gradeScoreField').value.trim();
+            const feedback = document.getElementById('gradeFeedbackField').value.trim();
+
+            if (!marks) { alert("Please enter a valid mark."); return; }
+
+            try {
+                const res = await secureFetch(`${BASE_URL}/submissions/grade/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ marks, feedback })
+                });
+
+                if (res.ok) {
+                    alert("Grade and feedback saved successfully!");
+                    closeGradeLightbox();
+                    renderTeacherDesk();
+                } else {
+                    alert("Failed to save grade.");
+                }
+            } catch (e) {
+                alert("Network error: " + e.message);
+            }
+        }
+
+        window.onload = function () {
+            const session = JSON.parse(localStorage.getItem('s_session'));
+            if (session) proceedToDashboard(session);
+        };
+    </script>
+</body>
+
+</html>
