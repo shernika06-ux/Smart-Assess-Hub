@@ -565,7 +565,7 @@
                         details.</div>
                     <div class="errMsg" id="loginErr"></div>
                     <div class="field"><label>Email Address</label><input type="email" id="loginEmail"
-                            placeholder="e.g., shernika.502459@sxcce.edu.in"></div>
+                            placeholder="e.g., name.rollno@sxcce.edu.in"></div>
                     <div class="field"><label>Password</label><input type="password" id="loginPassword"
                             placeholder="••••••••"></div>
                     <button class="btnPrimary" onclick="handleLogin()">Login</button>
@@ -584,7 +584,7 @@
                     <div class="field"><label>Full Name</label><input type="text" id="regName"
                             placeholder="Enter Full Name"></div>
                     <div class="field" id="rollField"><label>Roll Number / Registration Code</label><input type="text"
-                            id="regRoll" placeholder="e.g., 502400"></div>
+                            id="regRoll" placeholder="Roll no."></div>
                     <div class="field" id="yearField">
                         <label>Year of Study</label>
                         <select id="regYear">
@@ -595,7 +595,7 @@
                         </select>
                     </div>
                     <div class="field"><label>Email Address</label><input type="email" id="regEmail"
-                            placeholder="username@sxcce.edu.in"></div>
+                            placeholder="name.rollno@sxcce.edu.in"></div>
                     <div class="field"><label>Password</label><input type="password" id="regPassword"
                             placeholder="Password"></div>
                     <div id="verifyWrap" class="hidden"
@@ -691,8 +691,8 @@
                 <ul class="navList">
                     <li><button id="tnavPost" class="active" onclick="switchTeacherTab('post')">✍ Post New
                             Assignment</button></li>
-                    <li><button id="tnavPosted" onclick="switchTeacherTab('posted')">📋 Posted Assignments</button></li>
-                    <li><button id="tnavSubs" onclick="switchTeacherTab('subs')">📥 Submissions Desk</button></li>
+                    <li><button id="tnavPosted" onclick="switchTeacherTab('posted')"> Posted Assignments</button></li>
+                    <li><button id="tnavSubs" onclick="switchTeacherTab('subs')"> Submissions Desk</button></li>
                 </ul>
             </div>
             <div>
@@ -717,9 +717,9 @@
                         style="display:none; background:var(--success-bg); color:var(--success); padding:12px; border-radius:8px; margin-bottom:16px; font-weight:600;">
                     </div>
                     <div class="field"><label>Assignment Title</label><input type="text" id="pTitle"
-                            placeholder="e.g., DBMS ER Diagram"></div>
+                            placeholder="Title"></div>
                     <div class="field"><label>Subject</label><input type="text" id="pSubject"
-                            placeholder="e.g., Database Management Systems"></div>
+                            placeholder="Subject"></div>
                     <div class="field"><label>Due Date / Deadline</label><input type="date" id="pDueDate"></div>
                     <div class="field"><label>Assignment Description / Details</label><textarea id="pDesc" rows="4"
                             placeholder="Type instructions, requirements, and marking criteria here..."></textarea>
@@ -818,15 +818,8 @@
 
         /* Seed System Database Initial Fallback Setup */
         if (getStorage('s_assigns').length === 0) {
-            setStorage('s_assigns', [
-                { id: 'a1', title: 'DBMS ER Diagram', subject: 'Database Management Systems', year: '1', yearGroup: 1, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-07-28', description: 'Create schematic maps detailing advanced entity distribution matrix.' },
-                { id: 'a2', title: 'DBMS ER Diagram', subject: 'Database Management Systems', year: '2', yearGroup: 2, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-07-28', description: 'Create schematic maps detailing advanced entity distribution matrix.' },
-                { id: 'a3', title: 'Data Structures Lab', subject: 'Data Structures', year: '3', yearGroup: 3, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-08-05', description: 'Implement binary search tree operations.' },
-                { id: 'a4', title: 'Machine Learning Project', subject: 'Artificial Intelligence', year: '4', yearGroup: 4, teacherEmail: 'staff@sxcce.edu.in', teacherName: 'Prof. Edwin Garcia', dueDate: '2026-08-15', description: 'Build a classification model using scikit-learn.' }
-            ]);
-            setStorage('s_subs', [
-                { id: 'sub_1', assignmentId: 'a2', assignmentTitle: 'DBMS ER Diagram', subject: 'Database Management Systems', studentName: 'Shernika S S', studentEmail: 'shernika.502459@sxcce.edu.in', studentRoll: '502400', fileName: 'Shernika.S.S-III IT.pdf', timestamp: '13/07/2026, 10:58:09', marks: '88', feedback: 'Good structural maps.' }
-            ]);
+            setStorage('s_assigns', []);
+            setStorage('s_subs', []);
         }
 
         function toggleTheme() {
@@ -1273,9 +1266,21 @@
             if (!confirm("Are you sure you want to delete this assignment?")) return;
             try {
                 await secureFetch(`${BASE_URL}/assignments/${id}`, { method: 'DELETE' });
+                
+                // Also remove from local storage fallback
+                let list = getStorage('s_assigns');
+                list = list.filter(a => String(a.id) !== String(id));
+                setStorage('s_assigns', list);
+
                 renderPostedAssignments();
             } catch (e) {
-                alert("Error deleting assignment.");
+                // If network fails, still remove from local storage offline copy
+                let list = getStorage('s_assigns');
+                list = list.filter(a => String(a.id) !== String(id));
+                setStorage('s_assigns', list);
+                
+                renderPostedAssignments();
+                console.error("Error deleting assignment.", e);
             }
         }
 

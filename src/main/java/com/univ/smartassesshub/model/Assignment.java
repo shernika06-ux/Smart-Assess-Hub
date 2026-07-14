@@ -42,6 +42,10 @@ public class Assignment {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @OneToMany(mappedBy = "assignment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private java.util.List<Submission> submissions;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
