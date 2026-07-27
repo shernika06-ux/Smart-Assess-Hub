@@ -33,3 +33,15 @@ build/
 .vscode/
 
 uploads-dir/
+
+### Docker / Environment ###
+.env
+.env.*
+!.env.example
+
+
+data/
+*.mv.db
+.env
+target/
+uploads-dir/

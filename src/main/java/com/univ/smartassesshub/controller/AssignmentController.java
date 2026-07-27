@@ -4,9 +4,12 @@ import com.univ.smartassesshub.model.Assignment;
 import com.univ.smartassesshub.model.User;
 import com.univ.smartassesshub.repository.AssignmentRepository;
 import com.univ.smartassesshub.repository.UserRepository;
+import com.univ.smartassesshub.service.FileStorageService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
@@ -17,23 +20,53 @@ public class AssignmentController {
 
     private final AssignmentRepository assignmentRepository;
     private final UserRepository userRepository;
+    private final FileStorageService fileStorageService;
 
-    public AssignmentController(AssignmentRepository assignmentRepository, UserRepository userRepository) {
+    public AssignmentController(AssignmentRepository assignmentRepository,
+                                UserRepository userRepository,
+                                FileStorageService fileStorageService) {
         this.assignmentRepository = assignmentRepository;
         this.userRepository = userRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     // ============================================================
     // POST /api/assignments/create  — Teacher creates an assignment
-    // Body: { title, subject, yearGroup, dueDate, description, teacherId }
+    // Supports both multipart/form-data (with optional reference file) and JSON body
     // ============================================================
-    @PostMapping("/create")
-    public ResponseEntity<?> createAssignment(@RequestBody Map<String, Object> body) {
+    @PostMapping(value = "/create", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
+    public ResponseEntity<?> createAssignmentMultipart(
+            @RequestParam("title") String title,
+            @RequestParam("subject") String subject,
+            @RequestParam(value = "description", required = false, defaultValue = "") String description,
+            @RequestParam("dueDate") String dueDate,
+            @RequestParam(value = "yearGroup", required = false, defaultValue = "1") int yearGroup,
+            @RequestParam("teacherId") Long teacherId,
+            @RequestParam(value = "file", required = false) MultipartFile file) {
+        return processCreateAssignment(title, subject, description, dueDate, yearGroup, teacherId, file);
+    }
+
+    @PostMapping(value = "/create", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> createAssignmentJson(@RequestBody Map<String, Object> body) {
+        if (!body.containsKey("teacherId") || body.get("teacherId") == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "teacherId is required"));
+        }
+        Long teacherId = Long.parseLong(body.get("teacherId").toString());
+        String title = body.getOrDefault("title", "").toString();
+        String subject = body.getOrDefault("subject", "").toString();
+        String description = body.getOrDefault("description", "").toString();
+        String dueDate = body.getOrDefault("dueDate", "").toString();
+        int yearGroup = 1;
+        if (body.containsKey("yearGroup") && body.get("yearGroup") != null) {
+            try { yearGroup = Integer.parseInt(body.get("yearGroup").toString()); } catch (Exception ignored) {}
+        }
+        return processCreateAssignment(title, subject, description, dueDate, yearGroup, teacherId, null);
+    }
+
+    private ResponseEntity<?> processCreateAssignment(String title, String subject, String description,
+                                                       String dueDate, int yearGroup, Long teacherId,
+                                                       MultipartFile file) {
         try {
-            if (!body.containsKey("teacherId") || body.get("teacherId") == null) {
-                return ResponseEntity.badRequest().body(Map.of("error", "teacherId is required"));
-            }
-            Long teacherId = Long.parseLong(body.get("teacherId").toString());
             Optional<User> teacherOpt = userRepository.findById(teacherId);
             if (teacherOpt.isEmpty() || teacherOpt.get().getRole() != User.Role.ROLE_TEACHER) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -41,20 +74,25 @@ public class AssignmentController {
             }
 
             Assignment assignment = new Assignment();
-            assignment.setTitle(body.get("title").toString());
-            assignment.setSubject(body.get("subject").toString());
-            assignment.setDescription(body.getOrDefault("description", "").toString());
-            assignment.setDueDate(body.get("dueDate").toString());
-            
-            int year = 1;
-            if (body.containsKey("yearGroup") && body.get("yearGroup") != null) {
-                year = Integer.parseInt(body.get("yearGroup").toString());
-            }
-            assignment.setYearGroup(year);
+            assignment.setTitle(title);
+            assignment.setSubject(subject);
+            assignment.setDescription(description != null ? description : "No description provided.");
+            assignment.setDueDate(dueDate);
+            assignment.setYearGroup(yearGroup > 0 ? yearGroup : 1);
             assignment.setTeacher(teacherOpt.get());
 
-            assignmentRepository.save(assignment);
-            return ResponseEntity.ok(Map.of("status", "success", "message", "Assignment posted successfully!"));
+            if (file != null && !file.isEmpty()) {
+                String storedFileName = fileStorageService.storeFile(file, "ref_" + teacherId);
+                assignment.setReferenceFilePath(storedFileName);
+            }
+
+            Assignment saved = assignmentRepository.save(assignment);
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Assignment posted successfully!",
+                    "id", saved.getId(),
+                    "assignmentId", saved.getId()
+            ));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", "Failed to create assignment: " + e.getMessage()));
         }
@@ -73,12 +111,13 @@ public class AssignmentController {
     // ============================================================
     @GetMapping("/year/{year}")
     public ResponseEntity<List<Map<String, Object>>> getByYear(@PathVariable int year) {
-        return ResponseEntity.ok(toMapList(assignmentRepository.findByYearGroup(year)));
+        // Only return assignments that belong to the requested year group — no cross-year fallback
+        List<Assignment> assignments = assignmentRepository.findByYearGroup(year);
+        return ResponseEntity.ok(toMapList(assignments));
     }
 
     // ============================================================
     // GET /api/assignments/teacher/{teacherId}/year/{year}
-    // — Teacher's posted assignments filtered by year
     // ============================================================
     @GetMapping("/teacher/{teacherId}/year/{year}")
     public ResponseEntity<List<Map<String, Object>>> getByTeacherAndYear(
@@ -107,9 +146,7 @@ public class AssignmentController {
         return ResponseEntity.ok(Map.of("status", "success", "message", "Assignment deleted!"));
     }
 
-    // ============================================================
-    // Helper: Convert Assignment entities to plain Maps (avoids circular JSON)
-    // ============================================================
+    // Helper: Convert Assignment entities to plain Maps
     private List<Map<String, Object>> toMapList(List<Assignment> assignments) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Assignment a : assignments) {
@@ -120,8 +157,9 @@ public class AssignmentController {
             map.put("description", a.getDescription());
             map.put("yearGroup", a.getYearGroup());
             map.put("dueDate", a.getDueDate());
-            map.put("teacherId", a.getTeacher().getId());
-            map.put("teacherName", a.getTeacher().getFullName());
+            map.put("referenceFilePath", a.getReferenceFilePath());
+            map.put("teacherId", a.getTeacher() != null ? a.getTeacher().getId() : null);
+            map.put("teacherName", a.getTeacher() != null ? a.getTeacher().getFullName() : "Faculty");
             map.put("createdAt", a.getCreatedAt());
             result.add(map);
         }

@@ -42,7 +42,6 @@ public class SubmissionController {
 
     // ============================================================
     // 1. POST /api/submissions/upload  — Student uploads PDF
-    //    Params: assignmentId (Long), studentId (Long), file (MultipartFile)
     // ============================================================
     @PostMapping("/upload")
     public ResponseEntity<?> uploadSubmission(
@@ -96,7 +95,7 @@ public class SubmissionController {
     }
 
     // ============================================================
-    // 3. GET /api/submissions/assignment/{assignmentId}  — All submissions for an assignment
+    // 3. GET /api/submissions/assignment/{assignmentId}  — Submissions for an assignment
     // ============================================================
     @GetMapping("/assignment/{assignmentId}")
     public ResponseEntity<List<Map<String, Object>>> getByAssignment(@PathVariable Long assignmentId) {
@@ -104,7 +103,7 @@ public class SubmissionController {
     }
 
     // ============================================================
-    // 4. GET /api/submissions/year/{year}  — All submissions for a year group (teacher view)
+    // 4. GET /api/submissions/year/{year}  — All submissions for a year group
     // ============================================================
     @GetMapping("/year/{year}")
     public ResponseEntity<List<Map<String, Object>>> getByYear(@PathVariable int year) {
@@ -112,21 +111,23 @@ public class SubmissionController {
     }
 
     // ============================================================
-    // 5. GET /api/submissions/view/{submissionId}  — Stream actual PDF file
+    // 4b. GET /api/submissions/teacher/{teacherId}  — All submissions for a teacher
     // ============================================================
-    @GetMapping(value = "/view/{submissionId}", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<Resource> viewSubmissionPdf(@PathVariable Long submissionId) {
+    @GetMapping("/teacher/{teacherId}")
+    public ResponseEntity<List<Map<String, Object>>> getByTeacher(@PathVariable Long teacherId) {
+        return ResponseEntity.ok(toMapList(submissionRepository.findByAssignment_Teacher_Id(teacherId)));
+    }
+
+    // ============================================================
+    // 5. GET /api/submissions/file/{fileName:.+}  — Stream PDF file by filename
+    // ============================================================
+    @GetMapping(value = "/file/{fileName:.+}", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<Resource> streamFileByName(@PathVariable String fileName) {
         try {
-            Optional<Submission> subOpt = submissionRepository.findById(submissionId);
-            if (subOpt.isEmpty()) {
-                return ResponseEntity.status(404).build();
-            }
-
-            String fileName = subOpt.get().getSubmissionFilePath();
             Path uploadDir = Paths.get("uploads-dir").toAbsolutePath().normalize();
-            Path filePath = uploadDir.resolve(fileName);
+            Path filePath = uploadDir.resolve(fileName).normalize();
 
-            if (!Files.exists(filePath)) {
+            if (!Files.exists(filePath) || !filePath.startsWith(uploadDir)) {
                 return ResponseEntity.status(404).build();
             }
 
@@ -145,8 +146,30 @@ public class SubmissionController {
     }
 
     // ============================================================
-    // 6. PUT /api/submissions/grade/{id}  — Teacher grades a submission
-    //    Body: { marks: "90", feedback: "Good work!" }
+    // 6. GET /api/submissions/view/{submissionId}  — Stream PDF file by submission ID
+    // ============================================================
+    @GetMapping(value = "/view/{submissionId}", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<Resource> viewSubmissionPdf(@PathVariable String submissionId) {
+        try {
+            // Try parsing as Long submissionId first
+            try {
+                Long subId = Long.parseLong(submissionId);
+                Optional<Submission> subOpt = submissionRepository.findById(subId);
+                if (subOpt.isPresent()) {
+                    return streamFileByName(subOpt.get().getSubmissionFilePath());
+                }
+            } catch (NumberFormatException ignored) {
+                // If not numeric, treat as raw filename
+                return streamFileByName(submissionId);
+            }
+            return ResponseEntity.status(404).build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    // ============================================================
+    // 7. PUT /api/submissions/grade/{id}  — Teacher grades a submission
     // ============================================================
     @PutMapping("/grade/{id}")
     public ResponseEntity<?> gradeSubmission(
@@ -160,10 +183,11 @@ public class SubmissionController {
 
         Submission submission = subOpt.get();
 
-        if (payload.containsKey("marks")) {
-            submission.setMarksAwarded(Integer.parseInt(payload.get("marks").toString()));
+        if (payload.containsKey("marks") && payload.get("marks") != null) {
+            try {
+                submission.setMarksAwarded(Integer.parseInt(payload.get("marks").toString()));
+            } catch (Exception ignored) {}
         }
-        // Accept both "feedback" (from frontend) and "remarks"
         if (payload.containsKey("feedback")) {
             submission.setTeacherRemarks(payload.get("feedback").toString());
         } else if (payload.containsKey("remarks")) {
@@ -175,9 +199,7 @@ public class SubmissionController {
         return ResponseEntity.ok(Map.of("status", "success", "message", "Grade saved successfully!"));
     }
 
-    // ============================================================
-    // Helper: Submission entity → plain Map (avoids circular JSON)
-    // ============================================================
+    // Helper: Submission entity → plain Map
     private List<Map<String, Object>> toMapList(List<Submission> submissions) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Submission s : submissions) {
@@ -191,9 +213,12 @@ public class SubmissionController {
             map.put("studentName", s.getStudent().getFullName());
             map.put("studentRoll", s.getStudent().getIdentificationNumber());
             map.put("fileName", s.getSubmissionFilePath());
+            map.put("submissionFilePath", s.getSubmissionFilePath());
             map.put("submittedAt", s.getSubmittedAt());
             map.put("marks", s.getMarksAwarded());
+            map.put("marksAwarded", s.getMarksAwarded());
             map.put("feedback", s.getTeacherRemarks());
+            map.put("teacherRemarks", s.getTeacherRemarks());
             map.put("status", s.getStatus() != null ? s.getStatus().name() : "SUBMITTED");
             result.add(map);
         }

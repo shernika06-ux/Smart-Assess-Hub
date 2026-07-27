@@ -602,7 +602,7 @@
                         style="background:var(--cream); padding:12px; border-radius:8px; margin-bottom:16px;">
                         <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Teacher
                             Verification Code</label>
-                        <input type="text" id="regVerifyCode" placeholder="Enter Code">
+                        <input type="password" id="regVerifyCode" placeholder="Enter Code">
                     </div>
                     <button class="btnPrimary" onclick="handleRegister()">Register Account</button>
                 </div>
@@ -732,8 +732,8 @@
             <div id="teacherPostedView" class="hidden">
                 <div class="pageHead">
                     <div>
-                        <h1 style="margin:0;">Posted Assignments</h1>
-                        <div id="postedYearLabel" style="font-size:14px; color:var(--gold-soft); margin-top:4px;"></div>
+                        <h1 style="margin:0;">All Posted Assignments</h1>
+                        <div style="font-size:14px; color:var(--text-muted); margin-top:4px;">Showing all assignments you have posted across every year group</div>
                     </div>
                     <button class="btnAction" onclick="renderPostedAssignments()">🔄 Refresh</button>
                 </div>
@@ -744,8 +744,8 @@
             <div id="teacherSubsView" class="hidden">
                 <div class="pageHead">
                     <div>
-                        <h1 style="margin:0;">Submissions Desk</h1>
-                        <div id="subsYearLabel" style="font-size:14px; color:var(--gold-soft); margin-top:4px;"></div>
+                        <h1 style="margin:0;">All Student Submissions</h1>
+                        <div style="font-size:14px; color:var(--text-muted); margin-top:4px;">Showing submissions across all your posted assignments</div>
                     </div>
                     <button class="btnAction" onclick="renderTeacherDesk()">🔄 Refresh</button>
                 </div>
@@ -793,10 +793,16 @@
     <script>
         const VERIFY_TOKEN = "TECH2026";
         const STREAM_MAP = { 1: "1st Year", 2: "2nd Year", 3: "3rd Year", 4: "4th Year" };
-        const BASE_URL = "http://localhost:8080/api";
+        const BASE_URL = window.location.origin.startsWith('file:') ? 'http://localhost:8080/api' : window.location.origin + '/api';
         let activeBlobUrl = null;
         // In-memory PDF store: key = submissionId, value = object URL
         const localPdfStore = {};
+
+        // Check if a user ID is a frontend-generated mock (offline fallback) or a real DB ID
+        function isMockId(id) { return !id || String(id).startsWith('mock_') || String(id).startsWith('sub_'); }
+
+        // Safely encode a value for use inside an HTML attribute (prevents apostrophe/quote breakage)
+        function safeAttr(val) { return String(val || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
         // Injecting authorization headers safely
         async function secureFetch(url, options = {}) {
@@ -854,7 +860,6 @@
             if (!name || !email || !pass) { eBox.textContent = "Please fill all fields."; eBox.classList.add('show'); return; }
 
             let database = getStorage('s_users');
-            if (database.some(x => x.email === email)) { eBox.textContent = "Email already registered."; eBox.classList.add('show'); return; }
 
             let userObject = { role, name, email, password: pass };
             if (role === 'student') {
@@ -865,16 +870,28 @@
             }
 
             try {
-                await fetch(`${BASE_URL}/auth/register`, {
+                const res = await fetch(`${BASE_URL}/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(userObject)
                 });
+                const networkData = await res.json();
+                if (!res.ok) {
+                    throw new Error(networkData.error || 'Registration failed');
+                }
+                userObject.id = networkData.id || ('mock_' + Date.now());
                 database.push(userObject); setStorage('s_users', database);
                 alert("Registration completed! You can login now."); switchAuthTab('login');
             } catch (err) {
-                database.push(userObject); setStorage('s_users', database);
-                alert("Sandbox Registration complete!"); switchAuthTab('login');
+                // If it is a network error (server completely down), we fall back to offline storage
+                if (err instanceof TypeError || err.message.includes('fetch') || err.message.includes('Network')) {
+                    userObject.id = 'mock_' + Date.now();
+                    database.push(userObject); setStorage('s_users', database);
+                    alert("Sandbox Registration complete (Offline mode)!"); switchAuthTab('login');
+                } else {
+                    eBox.textContent = err.message || "Registration failed.";
+                    eBox.classList.add('show');
+                }
             }
         }
 
@@ -888,8 +905,8 @@
             let database = getStorage('s_users');
             if (database.length === 0) {
                 database = [
-                    { role: 'student', name: 'Shernika S S', email: 'shernika.502459@sxcce.edu.in', password: '123', roll: '502400', year: '2' },
-                    { role: 'teacher', name: 'Prof. Edwin Garcia', email: 'staff@sxcce.edu.in', password: '123' }
+                    { id: 'mock_1', role: 'student', name: 'Shernika S S', email: 'shernika.502459@sxcce.edu.in', password: '123', roll: '502400', year: '2' },
+                    { id: 'mock_2', role: 'teacher', name: 'Prof. Edwin Garcia', email: 'staff@sxcce.edu.in', password: '123' }
                 ];
                 setStorage('s_users', database);
             }
@@ -902,40 +919,63 @@
                 });
                 const networkData = await res.json();
 
-                // If server returned an error status, throw to trigger local fallback
+                // If server returned an error status, throw or display
                 if (!res.ok) {
-                    throw new Error(networkData.error || 'Login failed');
+                    eBox.textContent = networkData.error || 'Login failed';
+                    eBox.classList.add('show');
+                    return;
                 }
 
                 // Build a consistent identity object — handle both flat and nested API response shapes
                 const rawRole = (networkData.role || 'student').replace('ROLE_', '').toLowerCase();
                 const nestedUser = networkData.user || {};
+                // Resolve yearGroup carefully: server always sends it (null for teachers, integer for students)
+                const resolvedYearGroup = networkData.yearGroup ?? networkData.year ?? nestedUser.yearGroup ?? null;
                 const identity = {
                     role: rawRole,
                     name: networkData.name || networkData.fullName || nestedUser.name || email,
                     email: networkData.email || nestedUser.email || email,
-                    id: networkData.id || nestedUser.id,
+                    id: networkData.id || nestedUser.id || ('mock_' + Date.now()),
                     roll: networkData.roll || networkData.identificationNumber || nestedUser.roll || '',
-                    year: String(networkData.year || networkData.yearGroup || nestedUser.yearGroup || '2')
+                    year: resolvedYearGroup !== null && resolvedYearGroup !== undefined ? String(resolvedYearGroup) : null
                 };
 
                 localStorage.setItem('jwt_token', networkData.token);
                 localStorage.setItem('s_session', JSON.stringify(identity));
+                // Clear stale cached assignment/submission data — always fetch fresh from server
+                localStorage.removeItem('s_assigns');
+                localStorage.removeItem('s_subs');
                 proceedToDashboard(identity);
             } catch (e) {
-                // Fallback: authenticate against localStorage users (works offline too)
-                const identity = database.find(x => x.email === email && x.password === pass);
-                if (!identity) { eBox.textContent = "Invalid email address or incorrect password."; eBox.classList.add('show'); return; }
-                localStorage.setItem('jwt_token', "mock_token_active");
-                localStorage.setItem('s_session', JSON.stringify(identity));
-                proceedToDashboard(identity);
+                // If it is a network error (server completely down), we fall back to local offline storage auth
+                if (e instanceof TypeError || e.message.includes('fetch') || e.message.includes('Network')) {
+                    const identity = database.find(x => x.email === email && x.password === pass);
+                    if (!identity) { eBox.textContent = "Invalid email address or incorrect password (Offline)."; eBox.classList.add('show'); return; }
+                    if (!identity.id) {
+                        identity.id = 'mock_' + Date.now();
+                    }
+                    localStorage.setItem('jwt_token', "mock_token_active");
+                    localStorage.setItem('s_session', JSON.stringify(identity));
+                    proceedToDashboard(identity);
+                } else {
+                    eBox.textContent = e.message || "Login failed.";
+                    eBox.classList.add('show');
+                }
             }
         }
 
         function proceedToDashboard(identity) {
             document.getElementById('authScreen').classList.add('hidden');
-            if (identity.role === 'student') { document.getElementById('studentApp').classList.remove('hidden'); initStudent(); }
-            else { document.getElementById('teacherApp').classList.remove('hidden'); initTeacher(); }
+            if (identity.role === 'student') {
+                // Always wipe old cached assignment data for students — server is the single source of truth
+                localStorage.removeItem('s_assigns');
+                localStorage.removeItem('s_subs');
+                document.getElementById('studentApp').classList.remove('hidden');
+                initStudent();
+            } else {
+                document.getElementById('teacherApp').classList.remove('hidden');
+                initTeacher();
+            }
         }
 
         function handleLogout() { localStorage.clear(); location.reload(); }
@@ -943,7 +983,8 @@
         /* STUDENT CONSOLE PROCESSORS */
         function initStudent() {
             const current = JSON.parse(localStorage.getItem('s_session'));
-            const yearLabel = STREAM_MAP[parseInt(current.year)] || 'N/A';
+            const yearNum = parseInt(current.year);
+            const yearLabel = !isNaN(yearNum) ? (STREAM_MAP[yearNum] || ('Year ' + yearNum)) : 'N/A';
             document.getElementById('studentGreeting').textContent = `Logged in as: ${current.name} (${current.roll || 'N/A'}) — Class: ${yearLabel}`;
             switchStudentTab('assignments');
         }
@@ -957,42 +998,70 @@
         }
 
         async function renderStudentTasks() {
-            const current = JSON.parse(localStorage.getItem('s_session'));
-            const container = document.getElementById('studentAssignCards'); container.innerHTML = '<div style="padding:20px; opacity:0.6;">Loading assignments...</div>';
+            const current = JSON.parse(localStorage.getItem('s_session')) || {};
+            const studentYear = parseInt(current.year) || 1;
+            const container = document.getElementById('studentAssignCards'); 
+            container.innerHTML = '<div style="padding:20px; opacity:0.6;">Loading assignments...</div>';
 
-            // Load from localStorage as baseline (works immediately)
-            let assignments = getStorage('s_assigns').filter(x => String(x.yearGroup || x.year) === String(current.year));
-            let submissions = getStorage('s_subs').filter(x => x.studentEmail === current.email);
+            let assignments = [];
+            let submissions = [];
+            let serverReachable = false;
 
             try {
-                const aRes = await secureFetch(`${BASE_URL}/assignments/year/${current.year}`);
+                // Fetch assignments ONLY for this student's year — no cross-year fallback
+                const aRes = await secureFetch(`${BASE_URL}/assignments/year/${studentYear}`);
                 if (aRes.ok) {
                     const serverAssigns = await aRes.json();
-                    if (Array.isArray(serverAssigns) && serverAssigns.length > 0) {
-                        const localIds = new Set(assignments.map(a => String(a.id)));
-                        serverAssigns.forEach(sa => {
-                            if (!localIds.has(String(sa.id))) assignments.push(sa);
-                        });
+                    if (Array.isArray(serverAssigns)) {
+                        assignments = serverAssigns;
+                        serverReachable = true;
                     }
                 }
-                const sRes = await secureFetch(`${BASE_URL}/submissions/student/${current.id}`);
-                if (sRes.ok) {
-                    const serverSubs = await sRes.json();
-                    if (Array.isArray(serverSubs) && serverSubs.length > 0) submissions = serverSubs;
+                if (current.id) {
+                    const sRes = await secureFetch(`${BASE_URL}/submissions/student/${current.id}`);
+                    if (sRes.ok) {
+                        const serverSubs = await sRes.json();
+                        if (Array.isArray(serverSubs)) submissions = serverSubs;
+                    }
                 }
-            } catch (e) { console.log('Using local data:', e.message); }
+            } catch (e) { console.log('Server unreachable, using local fallback:', e.message); }
+
+            // Only use localStorage fallback when the server is completely unreachable
+            // Do NOT merge with s_assigns — that is the teacher's local cache and may contain other years
+            if (!serverReachable) {
+                const localList = getStorage('s_assigns').filter(a => String(a.yearGroup || a.year) === String(studentYear));
+                assignments = localList;
+                submissions = getStorage('s_subs').filter(x => x.studentEmail === current.email);
+            }
 
             container.innerHTML = '';
             if (assignments.length === 0) { container.innerHTML = `<div style="padding:20px; opacity:0.5;">No active assignments posted for your class yet. Check back later.</div>`; return; }
 
             assignments.forEach(a => {
-                // Match submission using both string and number id comparison
-                const targetSub = submissions.find(x => String(x.assignmentId) === String(a.id));
+                const targetSub = submissions.find(x => String(x.assignmentId) === String(a.id || a.assignmentId));
                 const completed = !!targetSub;
                 const card = document.createElement('div'); card.className = 'aCard';
                 const subjectLabel = a.subject || a.subjectName || 'N/A';
-                const teacherLabel = a.teacherName || a.teacher || 'Teacher';
+                const teacherLabel = a.teacherName || a.teacher || 'Faculty';
                 const dueDateLabel = a.dueDate || a.deadline || 'N/A';
+                const assignId = a.id || a.assignmentId;
+
+                // Marks: use strict null/undefined check so 0 marks still displays correctly
+                const hasGrade = completed && targetSub.marks !== null && targetSub.marks !== undefined && targetSub.marks !== '';
+                const feedbackText = completed ? (targetSub.feedback || targetSub.teacherRemarks || '') : '';
+                const fileLabel = completed ? (targetSub.fileName || targetSub.submissionFilePath || 'submission.pdf') : '';
+
+                let rightSection = '';
+                if (completed) {
+                    const viewBtn = `<button class="btnAction" data-subid="${targetSub.id}" data-filename="${safeAttr(fileLabel)}" onclick="openStudentPdf(this.dataset.subid, this.dataset.filename)" style="background:var(--navy-base); color:var(--gold); border-color:var(--gold);">📄 View My PDF</button>`;
+                    const gradeSection = hasGrade
+                        ? `<span class="grade-badge">Marks: ${targetSub.marks}/100</span>${feedbackText ? `<div style="font-size:11px; color:var(--text-muted); text-align:right; max-width:140px;">💬 ${feedbackText}</div>` : ''}`
+                        : `<span style="font-size:11px; opacity:0.6;">⏳ Awaiting Grade</span>`;
+                    rightSection = viewBtn + gradeSection;
+                } else {
+                    rightSection = `<input type="file" id="realFile_${assignId}" accept=".pdf" style="display:none;" onchange="handleRealPdfUpload('${assignId}')"><button class="btnAction" onclick="document.getElementById('realFile_${assignId}').click()">📁 Upload PDF File</button>`;
+                }
+
                 card.innerHTML = `
       <div style="flex:1;">
         <span class="subj">${subjectLabel}</span>
@@ -1002,13 +1071,7 @@
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:140px;">
         <span class="badge ${completed ? 'submitted' : 'pending'}">${completed ? '✓ Submitted' : 'Pending'}</span>
-        ${completed ? `
-          <button class="btnAction" onclick="openStudentPdf('${targetSub.id}', '${(targetSub.fileName||'').replace(/'/g,"''")}')" style="background:var(--navy-base); color:var(--gold); border-color:var(--gold);">📄 View My PDF</button>
-          ${targetSub.marks ? `<span class="grade-badge">Marks: ${targetSub.marks}/100</span>${targetSub.feedback ? `<div style="font-size:11px; color:var(--text-muted); text-align:right; max-width:140px;">💬 ${targetSub.feedback}</div>` : ''}` : `<span style="font-size:11px; opacity:0.6;">Awaiting Grade</span>`}
-        ` : `
-          <input type="file" id="realFile_${a.id}" accept=".pdf" style="display:none;" onchange="handleRealPdfUpload('${a.id}')">  
-          <button class="btnAction" onclick="document.getElementById('realFile_${a.id}').click()">📁 Upload PDF File</button>
-        `}
+        ${rightSection}
       </div>`;
                 container.appendChild(card);
             });
@@ -1022,11 +1085,9 @@
             document.getElementById('pdfLightbox').classList.remove('hidden');
 
             if (blobUrl) {
-                // Use stored blob from this session
                 document.getElementById('pdfFrameView').removeAttribute('srcdoc');
                 document.getElementById('pdfFrameView').src = blobUrl;
             } else {
-                // Try from server
                 openPdfLightbox(subId, fileName, 'You');
             }
         }
@@ -1038,14 +1099,25 @@
             if (file.type !== 'application/pdf') { alert('Please upload a PDF file only.'); return; }
 
             const user = JSON.parse(localStorage.getItem('s_session'));
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("assignmentId", assignmentId);
-            formData.append("studentId", user.id || "1");
+            const studentId = user.id;
 
-            // Always store blob locally first for in-session PDF viewing
+            if (!studentId) {
+                alert('Session error: No student ID found. Please log out and log back in.');
+                return;
+            }
+
+            // If the user registered offline and has a mock ID, block the upload and guide them
+            if (isMockId(studentId)) {
+                alert('⚠️ Your account is in offline mode.\n\nPlease log out and log back in using your registered email and password.\nYour details will sync with the server database.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('assignmentId', assignmentId);
+            formData.append('studentId', studentId);
+
             const blobUrl = URL.createObjectURL(file);
-            const tempSubId = 'sub_' + Date.now();
 
             try {
                 const uploadRes = await secureFetch(`${BASE_URL}/submissions/upload`, {
@@ -1054,36 +1126,20 @@
                 });
                 if (uploadRes.ok) {
                     const result = await uploadRes.json();
-                    const realSubId = result.id || tempSubId;
-                    localPdfStore[realSubId] = blobUrl;
-                    alert('PDF uploaded successfully!');
+                    const realSubId = result.submissionId || result.id;
+                    if (realSubId) localPdfStore[realSubId] = blobUrl;
+                    alert('✅ Assignment Submitted Successfully!\n\nYour PDF has been saved and is now visible to your teacher.');
                 } else {
-                    throw new Error('Server upload failed');
+                    const errBody = await uploadRes.json().catch(() => ({}));
+                    const errMsg = errBody.error || '';
+                    if (errMsg.toLowerCase().includes('already submitted')) {
+                        alert('⚠️ You have already submitted this assignment. Duplicate submissions are not allowed.');
+                    } else {
+                        alert('Upload failed: ' + (errMsg || 'Status ' + uploadRes.status));
+                    }
                 }
             } catch (e) {
-                // Sandbox fallback: save to localStorage and store blob in memory
-                const match = getStorage('s_assigns').find(x => String(x.id) === String(assignmentId));
-                if (!match) { alert('Assignment not found locally.'); return; }
-                let allSubs = getStorage('s_subs');
-                // Remove old submission for same assignment (re-submit)
-                allSubs = allSubs.filter(x => !(x.studentEmail === user.email && String(x.assignmentId) === String(assignmentId)));
-                const newSub = {
-                    id: tempSubId,
-                    assignmentId: String(assignmentId),
-                    assignmentTitle: match.title,
-                    subject: match.subject || '',
-                    studentName: user.name,
-                    studentEmail: user.email,
-                    studentRoll: user.roll || '502400',
-                    fileName: file.name,
-                    timestamp: new Date().toLocaleString(),
-                    marks: '',
-                    feedback: ''
-                };
-                allSubs.push(newSub);
-                setStorage('s_subs', allSubs);
-                localPdfStore[tempSubId] = blobUrl;
-                alert(`PDF "${file.name}" submitted successfully!`);
+                alert('Network error during upload: ' + e.message + '\n\nPlease check your connection and try again.');
             }
             renderStudentTasks();
         }
@@ -1091,34 +1147,52 @@
         async function renderStudentHistory() {
             const user = JSON.parse(localStorage.getItem('s_session'));
             const container = document.getElementById('studentSubmittedTable');
-            let subs = getStorage('s_subs').filter(x => x.studentEmail === user.email);
+            container.innerHTML = '<div style="padding:20px; opacity:0.6;">Loading your submission history...</div>';
+
+            let subs = [];
+            let serverReachable = false;
 
             try {
-                const sRes = await secureFetch(`${BASE_URL}/submissions/student/${user.id}`);
-                if (sRes.ok) {
-                    const serverSubs = await sRes.json();
-                    if (Array.isArray(serverSubs) && serverSubs.length > 0) subs = serverSubs;
+                if (user.id) {
+                    const sRes = await secureFetch(`${BASE_URL}/submissions/student/${user.id}`);
+                    if (sRes.ok) {
+                        const serverSubs = await sRes.json();
+                        if (Array.isArray(serverSubs)) {
+                            subs = serverSubs; // Server is the single source of truth for grades
+                            serverReachable = true;
+                        }
+                    }
                 }
-            } catch (e) { }
+            } catch (e) { console.log('Server unreachable for submission history:', e.message); }
+
+            // Only fall back to localStorage when server is completely unreachable
+            if (!serverReachable) {
+                subs = getStorage('s_subs').filter(x => x.studentEmail === user.email);
+            }
 
             if (subs.length === 0) { container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No submission history found yet.</p>"; return; }
             let rows = '';
             subs.forEach(s => {
-                const hasPdf = !!localPdfStore[s.id];
+                // Handle both field name variants from server and localStorage
+                const marksVal = s.marks || s.marksAwarded;
+                const feedbackVal = s.feedback || s.teacherRemarks;
+                const fileLabel = s.fileName || s.submissionFilePath || 'submission.pdf';
                 rows += `<tr>
       <td><strong>${s.assignmentTitle}</strong><br><small style="color:var(--text-muted);">${s.subject || ''}</small></td>
       <td>
-        <span class="view-pdf-link" onclick="openStudentPdf('${s.id}', '${(s.fileName||'').replace(/'/g,"''")}')">
-          📄 ${s.fileName || 'file.pdf'}
+        <span class="view-pdf-link" onclick="openStudentPdf('${s.id}', '${fileLabel.replace(/'/g, "\\'")}')">
+          📄 ${fileLabel}
         </span>
-        ${hasPdf ? '<span style="font-size:10px; color:#2F6F4E; margin-left:4px;">(available)</span>' : '<span style="font-size:10px; color:var(--text-muted); margin-left:4px;">(re-login to view)</span>'}
       </td>
-      <td class="mono">${s.timestamp || s.submittedAt || '-'}</td>
-      <td>${s.marks ? `<span class="grade-badge">${s.marks} / 100</span>${s.feedback ? `<div style="font-size:11px; margin-top:4px; color:var(--text-muted);">💬 ${s.feedback}</div>` : ''}` : '<span style="opacity:0.5;">Awaiting Grade</span>'}</td>
+      <td class="mono">${s.timestamp || (s.submittedAt ? new Date(s.submittedAt).toLocaleString() : '-')}</td>
+      <td>${marksVal
+            ? `<span class="grade-badge">${marksVal} / 100</span>${feedbackVal ? `<div style="font-size:11px; margin-top:4px; color:var(--text-muted);">💬 ${feedbackVal}</div>` : ''}`
+            : '<span style="opacity:0.5;">Awaiting Grade</span>'}</td>
     </tr>`;
             });
             container.innerHTML = `<table class="ledger"><thead><tr><th>Assignment</th><th>Submitted File</th><th>Date &amp; Time</th><th>Grade &amp; Feedback</th></tr></thead><tbody>${rows}</tbody></table>`;
         }
+
 
         /* TEACHER CONSOLE PROCESSORS */
         let currentTeacherYear = 1;
@@ -1126,29 +1200,21 @@
         function initTeacher() {
             const faculty = JSON.parse(localStorage.getItem('s_session'));
             document.getElementById('teacherInfo').innerHTML = `<strong>${faculty.name}</strong><br>${faculty.email}`;
-
-            // Auto-select 2nd year if no year was set, else 1st
             selectYear(1);
         }
 
         function selectYear(y) {
             currentTeacherYear = parseInt(y);
-            // Update button styles
             [1, 2, 3, 4].forEach(yr => {
                 const btn = document.getElementById('yrBtn' + yr);
                 if (btn) btn.classList.toggle('active', yr === currentTeacherYear);
             });
 
-            // Update labels in views
             const yrString = STREAM_MAP[currentTeacherYear];
             document.getElementById('postYearLabel').textContent = `Targeting: ${yrString}`;
-            document.getElementById('postedYearLabel').textContent = `Viewing: ${yrString}`;
-            document.getElementById('subsYearLabel').textContent = `Viewing: ${yrString}`;
 
-            // Refresh active tab content based on new year
-            const activeTab = document.querySelector('.navList button.active').id;
-            if (activeTab === 'tnavPosted') renderPostedAssignments();
-            if (activeTab === 'tnavSubs') renderTeacherDesk();
+            // Year selector only changes the 'Post New Assignment' target year now.
+            // Submissions Desk and Posted Assignments show all years.
         }
 
         function switchTeacherTab(t) {
@@ -1169,7 +1235,7 @@
             const subj = document.getElementById('pSubject').value.trim();
             const due = document.getElementById('pDueDate').value;
             const desc = document.getElementById('pDesc').value.trim();
-            const faculty = JSON.parse(localStorage.getItem('s_session'));
+            const faculty = JSON.parse(localStorage.getItem('s_session')) || {};
             const year = currentTeacherYear;
 
             if (!title || !subj || !due) { alert("Please fill all required fields (Title, Subject, Due Date)."); return; }
@@ -1178,7 +1244,7 @@
                 title: title,
                 subject: subj,
                 yearGroup: year,
-                year: String(year), // for cross-compatibility with student filter
+                year: String(year),
                 dueDate: due,
                 description: desc,
                 teacherId: faculty.id || 1,
@@ -1194,10 +1260,13 @@
                 });
                 if (res.ok) {
                     const created = await res.json();
-                    // Also save to localStorage for immediate visibility
+                    const realId = created.id || created.assignmentId || ('a_' + Date.now());
+                    
                     let list = getStorage('s_assigns');
-                    list.push({ id: String(created.id || 'a_' + Date.now()), ...payload });
+                    list = list.filter(item => !(item.title === title && item.subject === subj && String(item.yearGroup || item.year) === String(year)));
+                    list.push({ id: String(realId), assignmentId: String(realId), ...payload });
                     setStorage('s_assigns', list);
+
                     const msgBox = document.getElementById('postSuccessMsg');
                     msgBox.textContent = `✓ Assignment "${title}" posted to ${STREAM_MAP[year]}!`;
                     msgBox.style.display = 'block';
@@ -1209,11 +1278,12 @@
                     throw new Error('Server returned error');
                 }
             } catch (e) {
-                // Offline fallback: save directly to localStorage
                 let list = getStorage('s_assigns');
                 const newId = 'a_' + Date.now();
-                list.push({ id: newId, ...payload });
+                list = list.filter(item => !(item.title === title && item.subject === subj && String(item.yearGroup || item.year) === String(year)));
+                list.push({ id: newId, assignmentId: newId, ...payload });
                 setStorage('s_assigns', list);
+
                 const msgBox = document.getElementById('postSuccessMsg');
                 msgBox.textContent = `✓ Assignment "${title}" saved locally for ${STREAM_MAP[year]}! (Offline mode)`;
                 msgBox.style.display = 'block';
@@ -1226,38 +1296,56 @@
 
         async function renderPostedAssignments() {
             const container = document.getElementById('teacherPostedTable');
-            const faculty = JSON.parse(localStorage.getItem('s_session'));
-            const year = currentTeacherYear;
+            const faculty = JSON.parse(localStorage.getItem('s_session')) || {};
+            container.innerHTML = '<div style="padding:20px; opacity:0.6;">Loading...</div>';
 
             let assignments = [];
+            let serverReachable = false;
             try {
-                const res = await secureFetch(`${BASE_URL}/assignments/teacher/${faculty.id || 1}/year/${year}`);
-                if (res.ok) assignments = await res.json();
+                // Fetch ALL assignments by this teacher — no year filter
+                const res = await secureFetch(`${BASE_URL}/assignments/teacher/${faculty.id}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        assignments = data;
+                        serverReachable = true;
+                    }
+                }
             } catch (e) { console.log('Teacher offline fallback used', e.message); }
 
-            const localList = getStorage('s_assigns').filter(a => String(a.yearGroup || a.year) === String(year));
-            const serverIds = new Set(assignments.map(a => String(a.id)));
-            localList.forEach(la => {
-                if (!serverIds.has(String(la.id))) assignments.push(la);
-            });
+            // Only use localStorage when server is unreachable
+            if (!serverReachable) {
+                const localList = getStorage('s_assigns');
+                const seenKeys = new Set();
+                [...assignments, ...localList].forEach(a => {
+                    const idKey = String(a.id || a.assignmentId || '');
+                    if (idKey && seenKeys.has(idKey)) return;
+                    if (idKey) seenKeys.add(idKey);
+                    assignments.push(a);
+                });
+            }
 
             if (assignments.length === 0) {
-                container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No assignments posted for this year class yet.</p>";
+                container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No assignments posted yet. Use 'Post New Assignment' to create one.</p>";
                 return;
             }
 
             let rows = '';
             assignments.forEach(a => {
+                const assignId = a.id || a.assignmentId;
+                const yearNum = a.yearGroup || a.year;
+                const yearLabel = STREAM_MAP[parseInt(yearNum)] || ('Year ' + yearNum);
                 rows += `<tr>
       <td><strong>${a.title}</strong><br><small style="color:var(--text-muted);">${a.subject}</small></td>
+      <td><span style="background:var(--gold); color:#0B1F3A; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700;">${yearLabel}</span></td>
       <td>${a.description ? (a.description.substring(0, 40) + (a.description.length > 40 ? '...' : '')) : '-'}</td>
-      <td class="mono">${a.dueDate}</td>
-      <td><button class="btnAction" style="border:1px solid #ff4d4f; color:#ff4d4f; background:transparent;" onclick="deleteAssignment(${a.id})">Delete</button></td>
+      <td class="mono">${a.dueDate || '-'}</td>
+      <td><button class="btnAction" style="border:1px solid #ff4d4f; color:#ff4d4f; background:transparent;" onclick="deleteAssignment('${assignId}')">Delete</button></td>
     </tr>`;
             });
             container.innerHTML = `
     <table class="ledger">
-      <thead><tr><th>Title & Subject</th><th>Description snippet</th><th>Due Date</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Title &amp; Subject</th><th>Class Year</th><th>Description</th><th>Due Date</th><th>Actions</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
         }
@@ -1286,49 +1374,75 @@
 
         async function renderTeacherDesk() {
             const container = document.getElementById('teacherSubsTable');
-            const year = currentTeacherYear;
+            const faculty = JSON.parse(localStorage.getItem('s_session')) || {};
+            container.innerHTML = '<div style="padding:20px; opacity:0.6;">Loading submissions...</div>';
             let submissions = [];
+            let serverReachable = false;
 
             try {
-                const res = await secureFetch(`${BASE_URL}/submissions/year/${year}`);
+                const res = await secureFetch(`${BASE_URL}/submissions/teacher/${faculty.id || 1}`);
                 if (res.ok) {
                     const serverSubs = await res.json();
-                    if (Array.isArray(serverSubs) && serverSubs.length > 0) submissions = serverSubs;
+                    if (Array.isArray(serverSubs)) {
+                        submissions = serverSubs; // Server is authoritative even if empty
+                        serverReachable = true;
+                    }
                 }
-            } catch (e) { }
+            } catch (e) { console.log('Teacher desk server error:', e.message); }
 
-            if (submissions.length === 0) {
+            // Only fall back to localStorage when server is completely unreachable
+            if (!serverReachable) {
                 const localSubs = getStorage('s_subs').filter(s => {
                     const matchAssign = getStorage('s_assigns').find(a => String(a.id) === String(s.assignmentId));
-                    return matchAssign && String(matchAssign.yearGroup || matchAssign.year) === String(year);
+                    // Show only offline submissions for assignments posted by this teacher
+                    return matchAssign && String(matchAssign.teacherId) === String(faculty.id);
                 });
-                if (localSubs.length > 0) {
-                    submissions = localSubs;
-                } else {
-                    container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No student submissions received for this year yet.</p>"; return;
-                }
+                submissions = localSubs;
             }
+
+            if (submissions.length === 0) {
+                container.innerHTML = "<p style='padding:20px; opacity:0.5;'>No student submissions received for this year yet.</p>";
+                return;
+            }
+
 
             let rows = '';
             submissions.forEach(s => {
+                const yearNum = s.yearGroup || s.year || 1;
+                const yearLabel = STREAM_MAP[parseInt(yearNum)] || ('Year ' + yearNum);
+                const rawFileName = s.fileName || s.submissionFilePath || 'file.pdf';
+                // Show a friendly display name: strip the UUID prefix from the stored server filename
+                const friendlyFileName = rawFileName.replace(/^[a-z_]+_\d+_\d+_[a-f0-9\-]+_/, '') || rawFileName;
+                const hasGrade = s.marks !== null && s.marks !== undefined && s.marks !== '';
+                const currentFeedback = s.feedback || s.teacherRemarks || '';
+                const gradeCell = hasGrade
+                    ? `<span class="grade-badge" style="margin-right:6px;">${s.marks} / 100</span>
+                       <button class="btnAction" style="padding:2px 6px; font-size:10px;"
+                           data-subid="${s.id}" data-student="${safeAttr(s.studentName)}"
+                           data-title="${safeAttr(s.assignmentTitle)}" data-marks="${safeAttr(s.marks)}"
+                           data-feedback="${safeAttr(currentFeedback)}"
+                           onclick="openGradeModalFromEl(this)">Edit Grade</button>`
+                    : `<button class="btnAction"
+                           data-subid="${s.id}" data-student="${safeAttr(s.studentName)}"
+                           data-title="${safeAttr(s.assignmentTitle)}" data-marks=""
+                           data-feedback=""
+                           onclick="openGradeModalFromEl(this)">✍ Add Grade</button>`;
                 rows += `<tr>
       <td><strong>${s.studentName}</strong><br><small class="mono" style="opacity:0.6;">${s.studentRoll}</small></td>
-      <td><strong>${s.assignmentTitle}</strong><br><small style="color:var(--text-muted); text-transform:uppercase;">${s.subject}</small></td>
-      <td><span class="view-pdf-link" onclick="openPdfLightbox('${s.id}', '${s.fileName}', '${s.studentName}')">📄 View PDF</span></td>
-      <td class="mono" style="font-size:12px;">${new Date(s.submittedAt || Date.now()).toLocaleDateString()}</td>
-      <td>
-        ${s.marks ? `
-          <span class="grade-badge" style="margin-right:6px;">${s.marks} / 100</span>
-          <button class="btnAction" style="padding:2px 6px; font-size:10px;" onclick="openGradeModal('${s.id}', '${s.studentName}', '${s.assignmentTitle}', '${s.marks}', '${s.feedback || ''}')">Edit</button>
-        ` : `
-          <button class="btnAction" onclick="openGradeModal('${s.id}', '${s.studentName}', '${s.assignmentTitle}', '', '')">✍ Add Grade</button>
-        `}
+      <td><strong>${s.assignmentTitle}</strong><br>
+        <small style="color:var(--text-muted); text-transform:uppercase;">${s.subject}</small><br>
+        <span style="background:var(--gold); color:#0B1F3A; padding:2px 8px; border-radius:8px; font-size:10px; font-weight:700;">${yearLabel}</span>
       </td>
+      <td><span class="view-pdf-link"
+          data-subid="${s.id}" data-filename="${safeAttr(rawFileName)}" data-student="${safeAttr(s.studentName)}"
+          onclick="openPdfLightbox(this.dataset.subid, this.dataset.filename, this.dataset.student)">📄 ${friendlyFileName}</span></td>
+      <td class="mono" style="font-size:12px;">${new Date(s.submittedAt || Date.now()).toLocaleDateString()}</td>
+      <td>${gradeCell}</td>
     </tr>`;
             });
             container.innerHTML = `
     <table class="ledger">
-      <thead><tr><th>Student Info</th><th>Assignment</th><th>File</th><th>Submitted Date</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Student Info</th><th>Assignment &amp; Class</th><th>Submitted File</th><th>Submitted Date</th><th>Grade &amp; Feedback</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
         }
@@ -1414,6 +1528,7 @@
             }
         }
 
+        // Called from inline onclick — kept for backwards compatibility
         function openGradeModal(id, studentName, title, currentMarks, currentFeedback) {
             document.getElementById('gradeSubId').value = id;
             document.getElementById('gradeStudentName').textContent = studentName;
@@ -1421,6 +1536,17 @@
             document.getElementById('gradeScoreField').value = currentMarks;
             document.getElementById('gradeFeedbackField').value = currentFeedback;
             document.getElementById('gradeLightbox').classList.remove('hidden');
+        }
+
+        // Called from data-* based buttons (XSS-safe, handles apostrophes in names)
+        function openGradeModalFromEl(btn) {
+            openGradeModal(
+                btn.dataset.subid,
+                btn.dataset.student,
+                btn.dataset.title,
+                btn.dataset.marks,
+                btn.dataset.feedback
+            );
         }
 
         function closeGradeLightbox() {

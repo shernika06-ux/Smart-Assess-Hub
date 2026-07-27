@@ -1,47 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-         https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.2.5</version>
-        <relativePath/>
+        <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
     <groupId>com.example</groupId>
     <artifactId>smart-assess-hub</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.01-SNAPSHOT</version>
+    <name>smart-assess-hub</name>
+    <description>College Assignment Tracker Architecture</description>
 
     <properties>
         <java.version>17</java.version>
     </properties>
 
     <dependencies>
-
-        <!-- Spring Boot Web -->
+        <!-- Web Core Controller Library Component -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Spring Security -->
+        <!-- Security Core Control Engine Mapping -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- Spring Data JPA -->
+        <!-- Data Validation ORM Database Mapping Engine -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- Lombok -->
+        <!-- Project Lombok (For Getters, Setters, and Constructors compilation) -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -49,20 +47,20 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- JWT -->
+        <!-- JWT Authentication Dependencies: Core API -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
             <version>0.11.5</version>
         </dependency>
-
+        <!-- JWT Crypt Implementation Modules -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
             <version>0.11.5</version>
             <scope>runtime</scope>
         </dependency>
-
+        <!-- JWT JSON Parser Parsing Serialization Engine -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
@@ -70,7 +68,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- DevTools -->
+        <!-- Development Tools Core Auto Refresh System Reload -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
@@ -78,36 +76,39 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- MySQL -->
+        <!-- MySQL Connector Driver Component (Fixes the missing com.mysql.cj.jdbc.Driver error) -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- H2 -->
+        <!-- Standard Database Driver Endpoint Integration Testing Support -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Test -->
+        <!-- Spring Boot Starter Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
+        <!-- JWT Library for Token Generation -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt</artifactId>
+            <version>0.9.1</version>
+        </dependency>
     </dependencies>
-
     <build>
         <plugins>
-
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-
                 <configuration>
                     <excludes>
                         <exclude>
@@ -116,10 +117,7 @@
                         </exclude>
                     </excludes>
                 </configuration>
-
             </plugin>
-
         </plugins>
     </build>
-
 </project>

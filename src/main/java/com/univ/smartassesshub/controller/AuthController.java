@@ -1,13 +1,13 @@
 package com.univ.smartassesshub.controller;
 
 import com.univ.smartassesshub.config.JwtUtil;
-import com.univ.smartassesshub.dto.LoginDTO;
 import com.univ.smartassesshub.dto.StudentRegisterDTO;
 import com.univ.smartassesshub.dto.TeacherRegisterDTO;
 import com.univ.smartassesshub.model.User;
 import com.univ.smartassesshub.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -21,15 +21,22 @@ public class AuthController {
 
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
+    private final PasswordEncoder passwordEncoder;
 
-    public AuthController(UserRepository userRepository, JwtUtil jwtUtil) {
+    public AuthController(UserRepository userRepository, JwtUtil jwtUtil, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    // Health check endpoint for Docker HEALTHCHECK and load balancers
+    @GetMapping("/health")
+    public ResponseEntity<?> health() {
+        return ResponseEntity.ok(Map.of("status", "UP", "service", "Smart Assess Hub"));
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> loginRequest) {
-        // Support both "email" and "username" field names from different frontends
         String email = loginRequest.get("email");
         if (email == null || email.isEmpty()) {
             email = loginRequest.get("username");
@@ -45,59 +52,61 @@ public class AuthController {
             String token = jwtUtil.generateToken("admin");
             Map<String, Object> response = new HashMap<>();
             response.put("token", token);
-            response.put("role", "teacher");
+            response.put("role", "ROLE_TEACHER");
             response.put("name", "System Administrator");
             response.put("fullName", "System Administrator");
             response.put("email", "admin");
             response.put("id", 1L);
-            response.put("user", Map.of("role", "teacher", "name", "System Administrator", "email", "admin", "id", 1L));
+            response.put("user", Map.of("role", "ROLE_TEACHER", "name", "System Administrator", "email", "admin", "id", 1L));
             return ResponseEntity.ok(response);
         }
 
         Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isPresent() && userOpt.get().getPassword().equals(password)) {
+        if (userOpt.isPresent()) {
             User user = userOpt.get();
-            String token = jwtUtil.generateToken(user.getEmail());
+            // Check password using BCrypt passwordEncoder with plain-text fallback
+            boolean matches = passwordEncoder.matches(password, user.getPassword()) || user.getPassword().equals(password);
+            if (matches) {
+                String token = jwtUtil.generateToken(user.getEmail());
 
-            // Determine readable role string for frontend
-            String roleStr = user.getRole().name().replace("ROLE_", "").toLowerCase();
+                String roleStr = user.getRole().name();
 
-            Map<String, Object> userMap = new HashMap<>();
-            userMap.put("role", roleStr);
-            userMap.put("name", user.getFullName());
-            userMap.put("email", user.getEmail());
-            userMap.put("id", user.getId());
-            if (user.getIdentificationNumber() != null) {
-                userMap.put("roll", user.getIdentificationNumber());
-            }
+                Map<String, Object> userMap = new HashMap<>();
+                userMap.put("role", roleStr);
+                userMap.put("name", user.getFullName());
+                userMap.put("email", user.getEmail());
+                userMap.put("id", user.getId());
+                if (user.getIdentificationNumber() != null) {
+                    userMap.put("roll", user.getIdentificationNumber());
+                }
+                // Always include yearGroup in nested user object (null for teachers)
+                userMap.put("yearGroup", user.getYearGroup());
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("token", token);
-            response.put("role", roleStr);
-            response.put("fullName", user.getFullName());
-            response.put("name", user.getFullName());
-            response.put("id", user.getId());
-            response.put("email", user.getEmail());
-            if (user.getIdentificationNumber() != null) {
-                response.put("roll", user.getIdentificationNumber());
-                response.put("identificationNumber", user.getIdentificationNumber());
-            }
-            if (user.getYearGroup() != null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("token", token);
+                response.put("role", roleStr);
+                response.put("fullName", user.getFullName());
+                response.put("name", user.getFullName());
+                response.put("id", user.getId());
+                response.put("email", user.getEmail());
+                if (user.getIdentificationNumber() != null) {
+                    response.put("roll", user.getIdentificationNumber());
+                    response.put("identificationNumber", user.getIdentificationNumber());
+                }
+                // Always send yearGroup so frontend never silently defaults to wrong year
                 response.put("yearGroup", user.getYearGroup());
-                response.put("year", String.valueOf(user.getYearGroup()));
+                if (user.getYearGroup() != null) {
+                    response.put("year", String.valueOf(user.getYearGroup()));
+                }
+                response.put("user", userMap);
+                return ResponseEntity.ok(response);
             }
-            response.put("user", userMap);
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Invalid Username or Password"));
         }
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "Invalid Username or Password"));
     }
 
-    /**
-     * Unified register endpoint used by index.html frontend.
-     * Supports both student and teacher registration in a single call.
-     */
     @PostMapping("/register")
     public ResponseEntity<?> registerUnified(@RequestBody Map<String, String> body) {
         String role = body.get("role");
@@ -116,9 +125,9 @@ public class AuthController {
         User user = new User();
         user.setFullName(name);
         user.setEmail(email);
-        user.setPassword(password);
+        user.setPassword(passwordEncoder.encode(password));
 
-        if ("teacher".equals(role)) {
+        if ("teacher".equalsIgnoreCase(role) || "ROLE_TEACHER".equalsIgnoreCase(role)) {
             user.setRole(User.Role.ROLE_TEACHER);
             String staffId = body.getOrDefault("staffId", body.getOrDefault("roll", "STAFF_" + System.currentTimeMillis()));
             if (!staffId.isEmpty() && userRepository.existsByIdentificationNumber(staffId)) {
@@ -132,7 +141,6 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Roll number already registered!"));
             }
             user.setIdentificationNumber(roll);
-            // Store student's year of study
             String yearStr = body.get("year");
             if (yearStr != null && !yearStr.isEmpty()) {
                 try { user.setYearGroup(Integer.parseInt(yearStr)); } catch (Exception ignored) {}
@@ -155,7 +163,7 @@ public class AuthController {
         User student = new User();
         student.setFullName(dto.getFullName());
         student.setEmail(dto.getEmail());
-        student.setPassword(dto.getPassword());
+        student.setPassword(passwordEncoder.encode(dto.getPassword()));
         student.setRole(User.Role.ROLE_STUDENT);
         student.setIdentificationNumber(dto.getRollNumber());
 
@@ -178,7 +186,7 @@ public class AuthController {
         User teacher = new User();
         teacher.setFullName(dto.getFullName());
         teacher.setEmail(dto.getEmail());
-        teacher.setPassword(dto.getPassword());
+        teacher.setPassword(passwordEncoder.encode(dto.getPassword()));
         teacher.setRole(User.Role.ROLE_TEACHER);
         teacher.setIdentificationNumber(dto.getStaffId());
 
